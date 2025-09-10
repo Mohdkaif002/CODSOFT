@@ -1,0 +1,335 @@
+import java.util.*;
+
+/**
+ * AI Tic-Tac-Toe Game - VS Code Compatible Version
+ * Simple, executable, and fully functional
+ * Features: Unbeatable AI using Minimax algorithm
+ */
+public class AITicTacToe {
+    
+    // Game constants
+    private static final char EMPTY = ' ';
+    private static final char HUMAN = 'X';
+    private static final char AI = 'O';
+    
+    // Game board
+    private char[][] board;
+    private Scanner scanner;
+    
+    // Constructor
+    public AITicTacToe() {
+        board = new char[3][3];
+        scanner = new Scanner(System.in);
+        initializeBoard();
+    }
+    
+    // Initialize empty board
+    private void initializeBoard() {
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3; j++) {
+                board[i][j] = EMPTY;
+            }
+        }
+    }
+    
+    // Display the game board
+    public void displayBoard() {
+        System.out.println("\n   0   1   2");
+        for (int i = 0; i < 3; i++) {
+            System.out.print(i + "  ");
+            for (int j = 0; j < 3; j++) {
+                System.out.print(board[i][j]);
+                if (j < 2) System.out.print(" | ");
+            }
+            System.out.println();
+            if (i < 2) System.out.println("  ---|---|---");
+        }
+        System.out.println();
+    }
+    
+    // Check if move is valid
+    public boolean isValidMove(int row, int col) {
+        return row >= 0 && row < 3 && col >= 0 && col < 3 && board[row][col] == EMPTY;
+    }
+    
+    // Make a move
+    public void makeMove(int row, int col, char player) {
+        if (isValidMove(row, col)) {
+            board[row][col] = player;
+        }
+    }
+    
+    // Check if board is full
+    private boolean isBoardFull() {
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3; j++) {
+                if (board[i][j] == EMPTY) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+    
+    // Check for winner
+    public char checkWinner() {
+        // Check rows
+        for (int i = 0; i < 3; i++) {
+            if (board[i][0] == board[i][1] && board[i][1] == board[i][2] && board[i][0] != EMPTY) {
+                return board[i][0];
+            }
+        }
+        
+        // Check columns
+        for (int j = 0; j < 3; j++) {
+            if (board[0][j] == board[1][j] && board[1][j] == board[2][j] && board[0][j] != EMPTY) {
+                return board[0][j];
+            }
+        }
+        
+        // Check diagonals
+        if (board[0][0] == board[1][1] && board[1][1] == board[2][2] && board[0][0] != EMPTY) {
+            return board[0][0];
+        }
+        if (board[0][2] == board[1][1] && board[1][1] == board[2][0] && board[0][2] != EMPTY) {
+            return board[0][2];
+        }
+        
+        return EMPTY; // No winner yet
+    }
+    
+    // Evaluate board for AI (scoring function)
+    private int evaluateBoard() {
+        char winner = checkWinner();
+        if (winner == AI) return 10;
+        if (winner == HUMAN) return -10;
+        return 0;
+    }
+    
+    // Minimax algorithm - the brain of the AI
+    private int minimax(int depth, boolean isMaximizing) {
+        int score = evaluateBoard();
+        
+        // If game is over, return score
+        if (score == 10) return score - depth;
+        if (score == -10) return score + depth;
+        if (isBoardFull()) return 0;
+        
+        if (isMaximizing) {
+            int bestScore = Integer.MIN_VALUE;
+            for (int i = 0; i < 3; i++) {
+                for (int j = 0; j < 3; j++) {
+                    if (board[i][j] == EMPTY) {
+                        board[i][j] = AI;
+                        int currentScore = minimax(depth + 1, false);
+                        board[i][j] = EMPTY;
+                        bestScore = Math.max(bestScore, currentScore);
+                    }
+                }
+            }
+            return bestScore;
+        } else {
+            int bestScore = Integer.MAX_VALUE;
+            for (int i = 0; i < 3; i++) {
+                for (int j = 0; j < 3; j++) {
+                    if (board[i][j] == EMPTY) {
+                        board[i][j] = HUMAN;
+                        int currentScore = minimax(depth + 1, true);
+                        board[i][j] = EMPTY;
+                        bestScore = Math.min(bestScore, currentScore);
+                    }
+                }
+            }
+            return bestScore;
+        }
+    }
+    
+    // Find the best move for AI
+    public int[] getBestMove() {
+        int bestScore = Integer.MIN_VALUE;
+        int[] bestMove = new int[2];
+        
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3; j++) {
+                if (board[i][j] == EMPTY) {
+                    board[i][j] = AI;
+                    int score = minimax(0, false);
+                    board[i][j] = EMPTY;
+                    
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMove[0] = i;
+                        bestMove[1] = j;
+                    }
+                }
+            }
+        }
+        return bestMove;
+    }
+    
+    // Get human player move
+    private int[] getHumanMove() {
+        while (true) {
+            try {
+                System.out.print("Enter your move (row col): ");
+                String input = scanner.nextLine();
+                String[] parts = input.trim().split(" ");
+                
+                if (parts.length == 2) {
+                    int row = Integer.parseInt(parts[0]);
+                    int col = Integer.parseInt(parts[1]);
+                    
+                    if (isValidMove(row, col)) {
+                        return new int[]{row, col};
+                    } else {
+                        System.out.println("Invalid move! Try again.");
+                    }
+                } else {
+                    System.out.println("Please enter row and column separated by space (e.g., '1 2')");
+                }
+            } catch (Exception e) {
+                System.out.println("Please enter valid numbers!");
+            }
+        }
+    }
+    
+    // Play a single game
+    public void playGame() {
+        System.out.println("\n=== TIC-TAC-TOE vs UNBEATABLE AI ===");
+        System.out.println("You are X, AI is O");
+        System.out.println("Enter moves as: row column (0-2)");
+        
+        displayBoard();
+        
+        while (true) {
+            // Human move
+            System.out.println("Your turn:");
+            int[] humanMove = getHumanMove();
+            makeMove(humanMove[0], humanMove[1], HUMAN);
+            displayBoard();
+            
+            // Check if human won or draw
+            char winner = checkWinner();
+            if (winner == HUMAN) {
+                System.out.println("🎉 Congratulations! You won! (This shouldn't happen!) 🎉");
+                return;
+            }
+            if (isBoardFull()) {
+                System.out.println("🤝 It's a draw! Well played! 🤝");
+                return;
+            }
+            
+            // AI move
+            System.out.println("AI is thinking...");
+            try {
+                Thread.sleep(1000); // Dramatic pause
+            } catch (InterruptedException e) {
+                // Continue
+            }
+            
+            int[] aiMove = getBestMove();
+            makeMove(aiMove[0], aiMove[1], AI);
+            System.out.println("AI played: " + aiMove[0] + " " + aiMove[1]);
+            displayBoard();
+            
+            // Check if AI won
+            winner = checkWinner();
+            if (winner == AI) {
+                System.out.println("🤖 AI wins! Better luck next time! 🤖");
+                return;
+            }
+            if (isBoardFull()) {
+                System.out.println("🤝 It's a draw! Well played! 🤝");
+                return;
+            }
+        }
+    }
+    
+    // Main game loop
+    public void start() {
+        System.out.println("🎯 WELCOME TO AI TIC-TAC-TOE! 🎯");
+        System.out.println("Challenge the unbeatable AI!");
+        
+        while (true) {
+            System.out.println("\n=== MAIN MENU ===");
+            System.out.println("1. Play Game");
+            System.out.println("2. How to Play");
+            System.out.println("3. Exit");
+            System.out.print("Choose option (1-3): ");
+            
+            try {
+                String choice = scanner.nextLine().trim();
+                
+                switch (choice) {
+                    case "1":
+                        initializeBoard();
+                        playGame();
+                        break;
+                    case "2":
+                        showInstructions();
+                        break;
+                    case "3":
+                        System.out.println("Thanks for playing! Goodbye! 👋");
+                        return;
+                    default:
+                        System.out.println("Please enter 1, 2, or 3");
+                }
+            } catch (Exception e) {
+                System.out.println("Please enter a valid option!");
+            }
+        }
+    }
+    
+    // Show game instructions
+    private void showInstructions() {
+        System.out.println("\n=== HOW TO PLAY ===");
+        System.out.println("🎯 Goal: Get 3 X's in a row, column, or diagonal");
+        System.out.println("📝 Input: Enter row and column numbers (0, 1, or 2)");
+        System.out.println("💡 Example: To play center, type: 1 1");
+        System.out.println("🤖 AI uses Minimax algorithm - it's mathematically perfect!");
+        System.out.println("📊 Board positions:");
+        System.out.println("   0   1   2");
+        System.out.println("0    |   |   ");
+        System.out.println("  ---|---|---");
+        System.out.println("1    |   |   ");
+        System.out.println("  ---|---|---");
+        System.out.println("2    |   |   ");
+        System.out.println("\nGood luck! (You'll need it!) 😉");
+    }
+    
+    // Test the AI (for debugging)
+    public static void runTest() {
+        System.out.println("🧪 Testing AI...");
+        AITicTacToe game = new AITicTacToe();
+        
+        // Test scenario: AI should block winning move
+        game.board[0][0] = HUMAN; // X
+        game.board[0][1] = HUMAN; // X
+        // AI should play at [0][2] to block
+        
+        int[] move = game.getBestMove();
+        System.out.println("Test - AI should block at [0][2]");
+        System.out.println("AI chose: [" + move[0] + "][" + move[1] + "]");
+        
+        if (move[0] == 0 && move[1] == 2) {
+            System.out.println("✅ Test PASSED - AI correctly blocked!");
+        } else {
+            System.out.println("❌ Test FAILED - AI didn't block optimally");
+        }
+    }
+    
+    // Main method - entry point
+    public static void main(String[] args) {
+        try {
+            if (args.length > 0 && args[0].equals("--test")) {
+                runTest();
+            } else {
+                AITicTacToe game = new AITicTacToe();
+                game.start();
+            }
+        } catch (Exception e) {
+            System.out.println("Error occurred: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+}
