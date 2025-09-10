@@ -1,0 +1,326 @@
+import java.util.*;
+import java.util.regex.Pattern;
+import java.util.regex.Matcher;
+import java.io.*;
+
+/**
+ * Universal Chatbot - A highly portable and dimensional chatbot
+ * Compatible with Java 8+ and runs in any environment
+ * Author: AI Assistant
+ * Version: 1.0
+ */
+public class UniversalChatbot {
+    
+    // Core chatbot engine
+    private final Map<Pattern, String[]> responsePatterns;
+    private final Random random;
+    private final Scanner scanner;
+    private String userName;
+    private int conversationCount;
+    
+    // Conversation context tracking
+    private String lastTopic;
+    private boolean isGreeted;
+    
+    public UniversalChatbot() {
+        this.responsePatterns = new HashMap<>();
+        this.random = new Random();
+        this.scanner = new Scanner(System.in);
+        this.conversationCount = 0;
+        this.isGreeted = false;
+        initializePatterns();
+    }
+    
+    /**
+     * Initialize all response patterns and rules
+     * This method makes the chatbot highly dimensional with various response categories
+     */
+    private void initializePatterns() {
+        // Greeting patterns
+        addPattern("(?i).*(hello|hi|hey|greetings).*", new String[]{
+            "Hello! I'm your friendly chatbot assistant. What's your name?",
+            "Hi there! Great to meet you! How can I help you today?",
+            "Hey! Welcome! I'm here to chat and assist you.",
+            "Greetings! I'm excited to talk with you!"
+        });
+        
+        // Name patterns
+        addPattern("(?i).*(my name is|i'm|i am|call me) ([a-zA-Z]+).*", new String[]{
+            "Nice to meet you, %s! How are you doing today?",
+            "Hello %s! That's a lovely name. What would you like to talk about?",
+            "Great to meet you, %s! I'm here to help with anything you need."
+        });
+        
+        // How are you patterns
+        addPattern("(?i).*(how are you|how's it going|what's up).*", new String[]{
+            "I'm doing great, thank you for asking! I'm always excited to chat.",
+            "I'm fantastic! Ready to help you with whatever you need.",
+            "I'm doing wonderful! How about you? How has your day been?",
+            "Great, thanks! I'm here and ready to assist you."
+        });
+        
+        // Weather patterns
+        addPattern("(?i).*(weather|temperature|rain|sunny|cold|hot).*", new String[]{
+            "I wish I could check the weather for you! You might want to check a weather app or website.",
+            "Weather talk! I'd recommend checking your local weather service for accurate forecasts.",
+            "I can't access real-time weather data, but I hope it's nice where you are!",
+            "Weather is always interesting to discuss! What's it like in your area today?"
+        });
+        
+        // Help patterns
+        addPattern("(?i).*(help|assist|support|what can you do).*", new String[]{
+            "I can chat about various topics, answer questions, provide information, and keep you company!",
+            "I'm here to help! I can discuss technology, provide general information, or just have a friendly conversation.",
+            "I can assist with general questions, provide conversation, and help brainstorm ideas!",
+            "I'm designed to be helpful! Ask me anything - I'll do my best to assist or point you in the right direction."
+        });
+        
+        // Technology patterns
+        addPattern("(?i).*(programming|code|java|python|technology|computer|software).*", new String[]{
+            "Technology is fascinating! Are you interested in programming or computer science?",
+            "I love tech discussions! Java is a great language - very portable and powerful.",
+            "Programming is such a creative field! What languages or technologies interest you most?",
+            "Tech talk is always exciting! Are you working on any interesting projects?"
+        });
+        
+        // Time patterns
+        addPattern("(?i).*(time|date|day|today|now).*", new String[]{
+            "I don't have access to real-time data, but I hope you're having a great day!",
+            "Time flies when you're having good conversations! How has your day been so far?",
+            "I can't tell you the exact time, but I'm always here when you need to chat!",
+            "Time is such an interesting concept! Are you working on something time-sensitive?"
+        });
+        
+        // Goodbye patterns
+        addPattern("(?i).*(bye|goodbye|see you|farewell|exit|quit).*", new String[]{
+            "Goodbye! It was great chatting with you. Come back anytime!",
+            "See you later! Thanks for the wonderful conversation!",
+            "Farewell! I hope you have a fantastic day ahead!",
+            "Goodbye! Feel free to return whenever you want to chat!"
+        });
+        
+        // Compliment patterns
+        addPattern("(?i).*(thank you|thanks|you're great|awesome|good job).*", new String[]{
+            "You're very welcome! I'm glad I could help!",
+            "Thank you so much! That means a lot to me.",
+            "I appreciate your kind words! Happy to assist anytime!",
+            "Thanks! It makes me happy to be helpful to you."
+        });
+        
+        // Question patterns
+        addPattern("(?i).*\\?.*", new String[]{
+            "That's an interesting question! Let me think about that...",
+            "Great question! I'd love to explore that topic with you.",
+            "You ask thoughtful questions! What made you curious about that?",
+            "I appreciate your curiosity! Questions like that make conversations interesting."
+        });
+        
+        // Default/fallback patterns
+        addPattern(".*", new String[]{
+            "That's interesting! Tell me more about that.",
+            "I see! Can you elaborate on that?",
+            "Fascinating! What made you think about that?",
+            "I'd love to hear more about your thoughts on that topic.",
+            "That sounds intriguing! What's your perspective on it?",
+            "Interesting point! How do you feel about that?",
+            "I'm listening! Please continue with your thoughts."
+        });
+    }
+    
+    /**
+     * Add a pattern-response pair to the chatbot's knowledge base
+     */
+    private void addPattern(String pattern, String[] responses) {
+        responsePatterns.put(Pattern.compile(pattern), responses);
+    }
+    
+    /**
+     * Process user input and generate appropriate response
+     */
+    public String processInput(String input) {
+        if (input == null || input.trim().isEmpty()) {
+            return "I didn't catch that. Could you say something?";
+        }
+        
+        conversationCount++;
+        String processedInput = input.trim();
+        
+        // Check for name extraction
+        Pattern namePattern = Pattern.compile("(?i).*(my name is|i'm|i am|call me) ([a-zA-Z]+).*");
+        Matcher nameMatcher = namePattern.matcher(processedInput);
+        if (nameMatcher.find() && userName == null) {
+            userName = nameMatcher.group(2);
+        }
+        
+        // Find matching pattern and generate response
+        for (Map.Entry<Pattern, String[]> entry : responsePatterns.entrySet()) {
+            Matcher matcher = entry.getKey().matcher(processedInput);
+            if (matcher.find()) {
+                String[] responses = entry.getValue();
+                String response = responses[random.nextInt(responses.length)];
+                
+                // Handle special formatting
+                if (response.contains("%s") && userName != null) {
+                    response = String.format(response, userName);
+                } else if (response.contains("%s") && nameMatcher.find()) {
+                    response = String.format(response, nameMatcher.group(2));
+                }
+                
+                return addPersonalTouch(response, processedInput);
+            }
+        }
+        
+        // This shouldn't happen due to catch-all pattern, but just in case
+        return "I'm not sure how to respond to that, but I'm here to chat!";
+    }
+    
+    /**
+     * Add personal touches based on context and conversation history
+     */
+    private String addPersonalTouch(String response, String input) {
+        // Add name if available
+        if (userName != null && random.nextInt(4) == 0 && !response.contains(userName)) {
+            response += " " + userName + "!";
+        }
+        
+        // Add conversation count context
+        if (conversationCount > 5 && random.nextInt(10) == 0) {
+            response += " We're having such a nice conversation!";
+        }
+        
+        return response;
+    }
+    
+    /**
+     * Main conversation loop - highly portable and environment-independent
+     */
+    public void startConversation() {
+        System.out.println("=".repeat(50));
+        System.out.println("🤖 UNIVERSAL CHATBOT - Ready to Chat! 🤖");
+        System.out.println("=".repeat(50));
+        System.out.println("Hi! I'm your friendly chatbot. Type 'quit' or 'exit' to end our conversation.");
+        System.out.println("-".repeat(50));
+        
+        while (true) {
+            System.out.print("\nYou: ");
+            String input = scanner.nextLine();
+            
+            // Check for exit conditions
+            if (input.toLowerCase().matches(".*(quit|exit|bye|goodbye).*")) {
+                System.out.println("\nBot: " + processInput(input));
+                break;
+            }
+            
+            // Process and respond
+            String response = processInput(input);
+            System.out.println("Bot: " + response);
+            
+            // Optional: Add typing delay for more natural feel
+            try {
+                Thread.sleep(500 + random.nextInt(1000));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+        
+        System.out.println("\n" + "=".repeat(50));
+        System.out.println("Thanks for chatting! Conversation ended. 👋");
+        System.out.println("=".repeat(50));
+    }
+    
+    /**
+     * Alternative method for programmatic use (for integration with other systems)
+     */
+    public String getSingleResponse(String input) {
+        return processInput(input);
+    }
+    
+    /**
+     * Get chatbot statistics
+     */
+    public Map<String, Object> getStats() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("conversationCount", conversationCount);
+        stats.put("userName", userName);
+        stats.put("isGreeted", isGreeted);
+        stats.put("totalPatterns", responsePatterns.size());
+        return stats;
+    }
+    
+    /**
+     * Reset chatbot state (useful for testing or multiple conversations)
+     */
+    public void reset() {
+        userName = null;
+        conversationCount = 0;
+        isGreeted = false;
+        lastTopic = null;
+    }
+    
+    /**
+     * Main method - Entry point for the application
+     * Designed to be highly portable and executable in any Java environment
+     */
+    public static void main(String[] args) {
+        try {
+            // Create and start the chatbot
+            UniversalChatbot chatbot = new UniversalChatbot();
+            
+            // Check if running with command line arguments
+            if (args.length > 0) {
+                if (args[0].equals("--test")) {
+                    // Test mode - run some automated tests
+                    runTests(chatbot);
+                } else if (args[0].equals("--single")) {
+                    // Single response mode - useful for integration
+                    if (args.length > 1) {
+                        String response = chatbot.getSingleResponse(args[1]);
+                        System.out.println(response);
+                    } else {
+                        System.out.println("Please provide input after --single flag");
+                    }
+                } else {
+                    // Start normal conversation
+                    chatbot.startConversation();
+                }
+            } else {
+                // Default: start interactive conversation
+                chatbot.startConversation();
+            }
+            
+        } catch (Exception e) {
+            System.err.println("Error running chatbot: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Test method to verify chatbot functionality
+     */
+    private static void runTests(UniversalChatbot chatbot) {
+        System.out.println("Running Chatbot Tests...\n");
+        
+        String[] testInputs = {
+            "Hello there!",
+            "My name is Alice",
+            "How are you doing?",
+            "What's the weather like?",
+            "Can you help me?",
+            "I love programming in Java",
+            "What time is it?",
+            "Thank you so much!",
+            "This is just a random statement",
+            "Goodbye!"
+        };
+        
+        for (String input : testInputs) {
+            String response = chatbot.getSingleResponse(input);
+            System.out.println("Input: " + input);
+            System.out.println("Response: " + response);
+            System.out.println("-".repeat(40));
+        }
+        
+        System.out.println("Test completed!");
+        System.out.println("Stats: " + chatbot.getStats());
+    }
+}
