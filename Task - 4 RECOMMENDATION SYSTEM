@@ -1,0 +1,1495 @@
+import java.io.*;
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * AI Recommendation System
+ * Features: Collaborative Filtering, Content-Based Filtering, Hybrid Recommendations
+ * Supports: Movies, Books, Products, Music, and custom items
+ * Highly portable and executable in any Java environment
+ * 
+ * @author AI Assistant
+ * @version 1.0
+ */
+public class RecommendationSystem {
+    
+    // System constants
+    private static final String SYSTEM_VERSION = "1.0";
+    private static final int DEFAULT_RECOMMENDATION_COUNT = 10;
+    private static final double SIMILARITY_THRESHOLD = 0.1;
+    
+    // Core components
+    private UserDatabase userDatabase;
+    private ItemCatalog itemCatalog;
+    private RatingMatrix ratingMatrix;
+    private CollaborativeFilter collaborativeFilter;
+    private ContentBasedFilter contentBasedFilter;
+    private HybridRecommender hybridRecommender;
+    private RecommendationAnalytics analytics;
+    
+    /**
+     * User representation with preferences and history
+     */
+    public static class User {
+        final String userId;
+        final String name;
+        final Map<String, Object> demographics;
+        final Map<String, Double> preferences;
+        final List<String> ratedItems;
+        final Map<String, String> tags;
+        
+        public User(String userId, String name) {
+            this.userId = userId;
+            this.name = name;
+            this.demographics = new HashMap<>();
+            this.preferences = new HashMap<>();
+            this.ratedItems = new ArrayList<>();
+            this.tags = new HashMap<>();
+        }
+        
+        public void addPreference(String category, double weight) {
+            preferences.put(category, weight);
+        }
+        
+        public void addDemographic(String key, Object value) {
+            demographics.put(key, value);
+        }
+        
+        public void addTag(String key, String value) {
+            tags.put(key, value);
+        }
+        
+        @Override
+        public String toString() {
+            return String.format("User[%s: %s] - %d ratings", userId, name, ratedItems.size());
+        }
+    }
+    
+    /**
+     * Generic item representation
+     */
+    public static class Item {
+        final String itemId;
+        final String title;
+        final String category;
+        final Map<String, Object> features;
+        final Set<String> genres;
+        final Map<String, Double> attributes;
+        final double popularity;
+        
+        public Item(String itemId, String title, String category) {
+            this.itemId = itemId;
+            this.title = title;
+            this.category = category;
+            this.features = new HashMap<>();
+            this.genres = new HashSet<>();
+            this.attributes = new HashMap<>();
+            this.popularity = Math.random(); // Simulated popularity
+        }
+        
+        public void addFeature(String key, Object value) {
+            features.put(key, value);
+        }
+        
+        public void addGenre(String genre) {
+            genres.add(genre);
+        }
+        
+        public void addAttribute(String key, double value) {
+            attributes.put(key, value);
+        }
+        
+        @Override
+        public String toString() {
+            return String.format("%s (%s) - %s", title, category, String.join(", ", genres));
+        }
+    }
+    
+    /**
+     * Rating representation
+     */
+    public static class Rating {
+        final String userId;
+        final String itemId;
+        final double rating;
+        final long timestamp;
+        final String review;
+        
+        public Rating(String userId, String itemId, double rating) {
+            this.userId = userId;
+            this.itemId = itemId;
+            this.rating = rating;
+            this.timestamp = System.currentTimeMillis();
+            this.review = "";
+        }
+        
+        public Rating(String userId, String itemId, double rating, String review) {
+            this.userId = userId;
+            this.itemId = itemId;
+            this.rating = rating;
+            this.timestamp = System.currentTimeMillis();
+            this.review = review;
+        }
+        
+        @Override
+        public String toString() {
+            return String.format("Rating[%s→%s: %.1f]", userId, itemId, rating);
+        }
+    }
+    
+    /**
+     * Recommendation result
+     */
+    public static class Recommendation {
+        final String itemId;
+        final double score;
+        final String reason;
+        final String algorithm;
+        final Map<String, Double> breakdown;
+        
+        public Recommendation(String itemId, double score, String reason, String algorithm) {
+            this.itemId = itemId;
+            this.score = score;
+            this.reason = reason;
+            this.algorithm = algorithm;
+            this.breakdown = new HashMap<>();
+        }
+        
+        public void addScoreBreakdown(String component, double value) {
+            breakdown.put(component, value);
+        }
+        
+        @Override
+        public String toString() {
+            return String.format("Recommendation[%s: %.3f] - %s", itemId, score, reason);
+        }
+    }
+    
+    /**
+     * User Database Management
+     */
+    public static class UserDatabase {
+        private Map<String, User> users;
+        private Map<String, List<Rating>> userRatings;
+        
+        public UserDatabase() {
+            this.users = new HashMap<>();
+            this.userRatings = new HashMap<>();
+            initializeSampleUsers();
+        }
+        
+        private void initializeSampleUsers() {
+            // Create sample users with different preferences
+            User alice = new User("user1", "Alice");
+            alice.addPreference("Action", 0.8);
+            alice.addPreference("Drama", 0.6);
+            alice.addDemographic("age", 25);
+            alice.addDemographic("gender", "F");
+            
+            User bob = new User("user2", "Bob");
+            bob.addPreference("Comedy", 0.9);
+            bob.addPreference("Action", 0.7);
+            bob.addDemographic("age", 30);
+            bob.addDemographic("gender", "M");
+            
+            User charlie = new User("user3", "Charlie");
+            charlie.addPreference("Drama", 0.8);
+            charlie.addPreference("Romance", 0.7);
+            charlie.addDemographic("age", 35);
+            charlie.addDemographic("gender", "M");
+            
+            addUser(alice);
+            addUser(bob);
+            addUser(charlie);
+        }
+        
+        public void addUser(User user) {
+            users.put(user.userId, user);
+            userRatings.put(user.userId, new ArrayList<>());
+        }
+        
+        public User getUser(String userId) {
+            return users.get(userId);
+        }
+        
+        public void addRating(Rating rating) {
+            userRatings.get(rating.userId).add(rating);
+            users.get(rating.userId).ratedItems.add(rating.itemId);
+        }
+        
+        public List<Rating> getUserRatings(String userId) {
+            return userRatings.getOrDefault(userId, new ArrayList<>());
+        }
+        
+        public Set<String> getAllUserIds() {
+            return users.keySet();
+        }
+        
+        public List<User> getAllUsers() {
+            return new ArrayList<>(users.values());
+        }
+    }
+    
+    /**
+     * Item Catalog Management
+     */
+    public static class ItemCatalog {
+        private Map<String, Item> items;
+        private Map<String, List<Item>> categoryIndex;
+        private Map<String, List<Item>> genreIndex;
+        
+        public ItemCatalog() {
+            this.items = new HashMap<>();
+            this.categoryIndex = new HashMap<>();
+            this.genreIndex = new HashMap<>();
+            initializeSampleItems();
+        }
+        
+        private void initializeSampleItems() {
+            // Movies
+            addItem(createMovie("movie1", "The Matrix", "Sci-Fi", "Action"));
+            addItem(createMovie("movie2", "Titanic", "Romance", "Drama"));
+            addItem(createMovie("movie3", "The Godfather", "Crime", "Drama"));
+            addItem(createMovie("movie4", "Pulp Fiction", "Crime", "Drama"));
+            addItem(createMovie("movie5", "Forrest Gump", "Drama", "Romance"));
+            
+            // Books
+            addItem(createBook("book1", "1984", "Dystopian", "Classic"));
+            addItem(createBook("book2", "To Kill a Mockingbird", "Classic", "Drama"));
+            addItem(createBook("book3", "Harry Potter", "Fantasy", "Adventure"));
+            addItem(createBook("book4", "The Great Gatsby", "Classic", "Romance"));
+            
+            // Products
+            addItem(createProduct("prod1", "Smartphone", "Electronics", "Communication"));
+            addItem(createProduct("prod2", "Laptop", "Electronics", "Computing"));
+            addItem(createProduct("prod3", "Headphones", "Electronics", "Audio"));
+            addItem(createProduct("prod4", "Coffee Maker", "Appliances", "Kitchen"));
+        }
+        
+        private Item createMovie(String id, String title, String... genres) {
+            Item movie = new Item(id, title, "Movie");
+            for (String genre : genres) {
+                movie.addGenre(genre);
+            }
+            movie.addAttribute("runtime", 90 + Math.random() * 60);
+            movie.addAttribute("year", 1990 + Math.random() * 30);
+            movie.addFeature("director", "Director " + id);
+            return movie;
+        }
+        
+        private Item createBook(String id, String title, String... genres) {
+            Item book = new Item(id, title, "Book");
+            for (String genre : genres) {
+                book.addGenre(genre);
+            }
+            book.addAttribute("pages", 200 + Math.random() * 400);
+            book.addAttribute("year", 1950 + Math.random() * 70);
+            book.addFeature("author", "Author " + id);
+            return book;
+        }
+        
+        private Item createProduct(String id, String title, String... categories) {
+            Item product = new Item(id, title, "Product");
+            for (String category : categories) {
+                product.addGenre(category);
+            }
+            product.addAttribute("price", 50 + Math.random() * 500);
+            product.addAttribute("rating", 3 + Math.random() * 2);
+            product.addFeature("brand", "Brand " + id);
+            return product;
+        }
+        
+        public void addItem(Item item) {
+            items.put(item.itemId, item);
+            
+            // Update category index
+            categoryIndex.computeIfAbsent(item.category, k -> new ArrayList<>()).add(item);
+            
+            // Update genre index
+            for (String genre : item.genres) {
+                genreIndex.computeIfAbsent(genre, k -> new ArrayList<>()).add(item);
+            }
+        }
+        
+        public Item getItem(String itemId) {
+            return items.get(itemId);
+        }
+        
+        public List<Item> getItemsByCategory(String category) {
+            return categoryIndex.getOrDefault(category, new ArrayList<>());
+        }
+        
+        public List<Item> getItemsByGenre(String genre) {
+            return genreIndex.getOrDefault(genre, new ArrayList<>());
+        }
+        
+        public List<Item> getAllItems() {
+            return new ArrayList<>(items.values());
+        }
+        
+        public Set<String> getAllItemIds() {
+            return items.keySet();
+        }
+    }
+    
+    /**
+     * Rating Matrix for collaborative filtering
+     */
+    public static class RatingMatrix {
+        private Map<String, Map<String, Double>> matrix;
+        private Set<String> users;
+        private Set<String> items;
+        
+        public RatingMatrix() {
+            this.matrix = new HashMap<>();
+            this.users = new HashSet<>();
+            this.items = new HashSet<>();
+        }
+        
+        public void addRating(String userId, String itemId, double rating) {
+            matrix.computeIfAbsent(userId, k -> new HashMap<>()).put(itemId, rating);
+            users.add(userId);
+            items.add(itemId);
+        }
+        
+        public Double getRating(String userId, String itemId) {
+            return matrix.getOrDefault(userId, new HashMap<>()).get(itemId);
+        }
+        
+        public Map<String, Double> getUserRatings(String userId) {
+            return matrix.getOrDefault(userId, new HashMap<>());
+        }
+        
+        public Set<String> getUsers() {
+            return users;
+        }
+        
+        public Set<String> getItems() {
+            return items;
+        }
+        
+        public Set<String> getCommonItems(String user1, String user2) {
+            Set<String> common = new HashSet<>(getUserRatings(user1).keySet());
+            common.retainAll(getUserRatings(user2).keySet());
+            return common;
+        }
+        
+        public double getAverageRating(String userId) {
+            Map<String, Double> userRatings = getUserRatings(userId);
+            if (userRatings.isEmpty()) return 0.0;
+            return userRatings.values().stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+        }
+    }
+    
+    /**
+     * Collaborative Filtering Implementation
+     */
+    public static class CollaborativeFilter {
+        private RatingMatrix ratingMatrix;
+        
+        public CollaborativeFilter(RatingMatrix ratingMatrix) {
+            this.ratingMatrix = ratingMatrix;
+        }
+        
+        /**
+         * Calculate user similarity using Pearson correlation
+         */
+        public double calculateUserSimilarity(String user1, String user2) {
+            Set<String> commonItems = ratingMatrix.getCommonItems(user1, user2);
+            
+            if (commonItems.size() < 2) {
+                return 0.0; // Not enough common items
+            }
+            
+            double sum1 = 0, sum2 = 0, sum1Sq = 0, sum2Sq = 0, pSum = 0;
+            int n = commonItems.size();
+            
+            for (String itemId : commonItems) {
+                double rating1 = ratingMatrix.getRating(user1, itemId);
+                double rating2 = ratingMatrix.getRating(user2, itemId);
+                
+                sum1 += rating1;
+                sum2 += rating2;
+                sum1Sq += rating1 * rating1;
+                sum2Sq += rating2 * rating2;
+                pSum += rating1 * rating2;
+            }
+            
+            double num = pSum - (sum1 * sum2 / n);
+            double den = Math.sqrt((sum1Sq - sum1 * sum1 / n) * (sum2Sq - sum2 * sum2 / n));
+            
+            if (den == 0) return 0;
+            
+            return num / den;
+        }
+        
+        /**
+         * Generate collaborative filtering recommendations
+         */
+        public List<Recommendation> recommend(String userId, int count) {
+            Map<String, Double> userSimilarities = new HashMap<>();
+            
+            // Calculate similarities with all other users
+            for (String otherUserId : ratingMatrix.getUsers()) {
+                if (!otherUserId.equals(userId)) {
+                    double similarity = calculateUserSimilarity(userId, otherUserId);
+                    if (similarity > SIMILARITY_THRESHOLD) {
+                        userSimilarities.put(otherUserId, similarity);
+                    }
+                }
+            }
+            
+            // Get user's rated items
+            Set<String> userRatedItems = ratingMatrix.getUserRatings(userId).keySet();
+            
+            // Calculate predicted ratings for unrated items
+            Map<String, Double> predictions = new HashMap<>();
+            
+            for (String itemId : ratingMatrix.getItems()) {
+                if (!userRatedItems.contains(itemId)) {
+                    double prediction = predictRating(userId, itemId, userSimilarities);
+                    if (prediction > 0) {
+                        predictions.put(itemId, prediction);
+                    }
+                }
+            }
+            
+            // Sort and return top recommendations
+            return predictions.entrySet().stream()
+                .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+                .limit(count)
+                .map(entry -> new Recommendation(entry.getKey(), entry.getValue(), 
+                    "Users with similar taste also liked this", "Collaborative Filtering"))
+                .collect(Collectors.toList());
+        }
+        
+        /**
+         * Predict rating for an item based on similar users
+         */
+        private double predictRating(String userId, String itemId, Map<String, Double> userSimilarities) {
+            double weightedSum = 0;
+            double similaritySum = 0;
+            
+            for (Map.Entry<String, Double> entry : userSimilarities.entrySet()) {
+                String similarUserId = entry.getKey();
+                double similarity = entry.getValue();
+                
+                Double rating = ratingMatrix.getRating(similarUserId, itemId);
+                if (rating != null) {
+                    weightedSum += similarity * rating;
+                    similaritySum += Math.abs(similarity);
+                }
+            }
+            
+            if (similaritySum == 0) return 0;
+            
+            return weightedSum / similaritySum;
+        }
+    }
+    
+    /**
+     * Content-Based Filtering Implementation
+     */
+    public static class ContentBasedFilter {
+        private ItemCatalog itemCatalog;
+        private UserDatabase userDatabase;
+        
+        public ContentBasedFilter(ItemCatalog itemCatalog, UserDatabase userDatabase) {
+            this.itemCatalog = itemCatalog;
+            this.userDatabase = userDatabase;
+        }
+        
+        /**
+         * Calculate item similarity based on features
+         */
+        public double calculateItemSimilarity(Item item1, Item item2) {
+            double similarity = 0.0;
+            
+            // Genre similarity
+            Set<String> commonGenres = new HashSet<>(item1.genres);
+            commonGenres.retainAll(item2.genres);
+            double genreSimilarity = commonGenres.size() / (double) Math.max(item1.genres.size(), item2.genres.size());
+            
+            // Category similarity
+            double categorySimilarity = item1.category.equals(item2.category) ? 1.0 : 0.0;
+            
+            // Attribute similarity (for numerical attributes)
+            double attributeSimilarity = 0.0;
+            int commonAttributes = 0;
+            for (String attr : item1.attributes.keySet()) {
+                if (item2.attributes.containsKey(attr)) {
+                    double val1 = item1.attributes.get(attr);
+                    double val2 = item2.attributes.get(attr);
+                    double maxVal = Math.max(Math.abs(val1), Math.abs(val2));
+                    if (maxVal > 0) {
+                        attributeSimilarity += 1.0 - Math.abs(val1 - val2) / maxVal;
+                        commonAttributes++;
+                    }
+                }
+            }
+            if (commonAttributes > 0) {
+                attributeSimilarity /= commonAttributes;
+            }
+            
+            // Weighted combination
+            similarity = 0.5 * genreSimilarity + 0.3 * categorySimilarity + 0.2 * attributeSimilarity;
+            
+            return similarity;
+        }
+        
+        /**
+         * Build user profile based on rated items
+         */
+        public Map<String, Double> buildUserProfile(String userId) {
+            Map<String, Double> profile = new HashMap<>();
+            List<Rating> userRatings = userDatabase.getUserRatings(userId);
+            
+            if (userRatings.isEmpty()) {
+                return profile;
+            }
+            
+            // Analyze user's preferences based on ratings
+            Map<String, List<Double>> genreRatings = new HashMap<>();
+            Map<String, List<Double>> categoryRatings = new HashMap<>();
+            
+            for (Rating rating : userRatings) {
+                Item item = itemCatalog.getItem(rating.itemId);
+                if (item != null) {
+                    // Collect genre preferences
+                    for (String genre : item.genres) {
+                        genreRatings.computeIfAbsent(genre, k -> new ArrayList<>()).add(rating.rating);
+                    }
+                    
+                    // Collect category preferences
+                    categoryRatings.computeIfAbsent(item.category, k -> new ArrayList<>()).add(rating.rating);
+                }
+            }
+            
+            // Calculate average ratings for each genre
+            for (Map.Entry<String, List<Double>> entry : genreRatings.entrySet()) {
+                double avgRating = entry.getValue().stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+                profile.put("genre_" + entry.getKey(), avgRating);
+            }
+            
+            // Calculate average ratings for each category
+            for (Map.Entry<String, List<Double>> entry : categoryRatings.entrySet()) {
+                double avgRating = entry.getValue().stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+                profile.put("category_" + entry.getKey(), avgRating);
+            }
+            
+            return profile;
+        }
+        
+        /**
+         * Generate content-based recommendations
+         */
+        public List<Recommendation> recommend(String userId, int count) {
+            Map<String, Double> userProfile = buildUserProfile(userId);
+            Set<String> userRatedItems = userDatabase.getUserRatings(userId).stream()
+                .map(rating -> rating.itemId)
+                .collect(Collectors.toSet());
+            
+            Map<String, Double> itemScores = new HashMap<>();
+            
+            for (Item item : itemCatalog.getAllItems()) {
+                if (!userRatedItems.contains(item.itemId)) {
+                    double score = calculateItemScore(item, userProfile);
+                    if (score > 0) {
+                        itemScores.put(item.itemId, score);
+                    }
+                }
+            }
+            
+            return itemScores.entrySet().stream()
+                .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+                .limit(count)
+                .map(entry -> {
+                    Item item = itemCatalog.getItem(entry.getKey());
+                    String reason = String.format("Based on your interest in %s content", 
+                                                 String.join(", ", item.genres));
+                    return new Recommendation(entry.getKey(), entry.getValue(), reason, "Content-Based");
+                })
+                .collect(Collectors.toList());
+        }
+        
+        /**
+         * Calculate score for an item based on user profile
+         */
+        private double calculateItemScore(Item item, Map<String, Double> userProfile) {
+            double score = 0.0;
+            int factors = 0;
+            
+            // Score based on genres
+            for (String genre : item.genres) {
+                Double genreScore = userProfile.get("genre_" + genre);
+                if (genreScore != null) {
+                    score += genreScore;
+                    factors++;
+                }
+            }
+            
+            // Score based on category
+            Double categoryScore = userProfile.get("category_" + item.category);
+            if (categoryScore != null) {
+                score += categoryScore;
+                factors++;
+            }
+            
+            // Add popularity bonus
+            score += item.popularity * 0.1;
+            
+            return factors > 0 ? score / factors : item.popularity;
+        }
+    }
+    
+    /**
+     * Hybrid Recommender combining multiple approaches
+     */
+    public static class HybridRecommender {
+        private CollaborativeFilter collaborativeFilter;
+        private ContentBasedFilter contentBasedFilter;
+        private double collaborativeWeight = 0.6;
+        private double contentWeight = 0.4;
+        
+        public HybridRecommender(CollaborativeFilter collaborativeFilter, 
+                               ContentBasedFilter contentBasedFilter) {
+            this.collaborativeFilter = collaborativeFilter;
+            this.contentBasedFilter = contentBasedFilter;
+        }
+        
+        public void setWeights(double collaborativeWeight, double contentWeight) {
+            this.collaborativeWeight = collaborativeWeight;
+            this.contentWeight = contentWeight;
+        }
+        
+        /**
+         * Generate hybrid recommendations
+         */
+        public List<Recommendation> recommend(String userId, int count) {
+            // Get recommendations from both approaches
+            List<Recommendation> collaborativeRecs = collaborativeFilter.recommend(userId, count * 2);
+            List<Recommendation> contentRecs = contentBasedFilter.recommend(userId, count * 2);
+            
+            // Combine and weight the recommendations
+            Map<String, Double> combinedScores = new HashMap<>();
+            Map<String, String> reasons = new HashMap<>();
+            
+            // Add collaborative filtering scores
+            for (Recommendation rec : collaborativeRecs) {
+                combinedScores.put(rec.itemId, rec.score * collaborativeWeight);
+                reasons.put(rec.itemId, rec.reason);
+            }
+            
+            // Add content-based scores
+            for (Recommendation rec : contentRecs) {
+                double existingScore = combinedScores.getOrDefault(rec.itemId, 0.0);
+                combinedScores.put(rec.itemId, existingScore + rec.score * contentWeight);
+                
+                // Combine reasons if item appears in both
+                if (reasons.containsKey(rec.itemId)) {
+                    reasons.put(rec.itemId, "Similar users & content preferences");
+                } else {
+                    reasons.put(rec.itemId, rec.reason);
+                }
+            }
+            
+            // Sort and return top recommendations
+            return combinedScores.entrySet().stream()
+                .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+                .limit(count)
+                .map(entry -> {
+                    Recommendation rec = new Recommendation(entry.getKey(), entry.getValue(), 
+                                                          reasons.get(entry.getKey()), "Hybrid");
+                    rec.addScoreBreakdown("Collaborative", 
+                        collaborativeRecs.stream()
+                            .filter(r -> r.itemId.equals(entry.getKey()))
+                            .mapToDouble(r -> r.score * collaborativeWeight)
+                            .findFirst().orElse(0.0));
+                    rec.addScoreBreakdown("Content-Based", 
+                        contentRecs.stream()
+                            .filter(r -> r.itemId.equals(entry.getKey()))
+                            .mapToDouble(r -> r.score * contentWeight)
+                            .findFirst().orElse(0.0));
+                    return rec;
+                })
+                .collect(Collectors.toList());
+        }
+    }
+    
+    /**
+     * Analytics and Performance Tracking
+     */
+    public static class RecommendationAnalytics {
+        private Map<String, Integer> algorithmUsage;
+        private Map<String, List<Double>> recommendationScores;
+        private Map<String, Long> responseTimesMs;
+        private int totalRecommendations;
+        
+        public RecommendationAnalytics() {
+            this.algorithmUsage = new HashMap<>();
+            this.recommendationScores = new HashMap<>();
+            this.responseTimesMs = new HashMap<>();
+            this.totalRecommendations = 0;
+        }
+        
+        public void recordRecommendation(String algorithm, List<Recommendation> recommendations, long responseTime) {
+            algorithmUsage.put(algorithm, algorithmUsage.getOrDefault(algorithm, 0) + 1);
+            responseTimesMs.put(algorithm, responseTime);
+            totalRecommendations += recommendations.size();
+            
+            List<Double> scores = recommendations.stream()
+                .map(r -> r.score)
+                .collect(Collectors.toList());
+            recommendationScores.computeIfAbsent(algorithm, k -> new ArrayList<>()).addAll(scores);
+        }
+        
+        public void printStatistics() {
+            System.out.println("\n📊 RECOMMENDATION SYSTEM ANALYTICS");
+            System.out.println("═".repeat(50));
+            System.out.println("Total recommendations generated: " + totalRecommendations);
+            
+            System.out.println("\n🔢 Algorithm Usage:");
+            for (Map.Entry<String, Integer> entry : algorithmUsage.entrySet()) {
+                double percentage = (entry.getValue() * 100.0) / algorithmUsage.values().stream().mapToInt(Integer::intValue).sum();
+                System.out.printf("  %s: %d times (%.1f%%)%n", entry.getKey(), entry.getValue(), percentage);
+            }
+            
+            System.out.println("\n⏱️  Average Response Times:");
+            for (Map.Entry<String, Long> entry : responseTimesMs.entrySet()) {
+                System.out.printf("  %s: %d ms%n", entry.getKey(), entry.getValue());
+            }
+            
+            System.out.println("\n🎯 Average Recommendation Scores:");
+            for (Map.Entry<String, List<Double>> entry : recommendationScores.entrySet()) {
+                double avgScore = entry.getValue().stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+                System.out.printf("  %s: %.3f%n", entry.getKey(), avgScore);
+            }
+            
+            System.out.println("═".repeat(50));
+        }
+        
+        public Map<String, Object> getAnalyticsData() {
+            Map<String, Object> data = new HashMap<>();
+            data.put("totalRecommendations", totalRecommendations);
+            data.put("algorithmUsage", algorithmUsage);
+            data.put("responseTimesMs", responseTimesMs);
+            
+            Map<String, Double> avgScores = new HashMap<>();
+            for (Map.Entry<String, List<Double>> entry : recommendationScores.entrySet()) {
+                double avg = entry.getValue().stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+                avgScores.put(entry.getKey(), avg);
+            }
+            data.put("averageScores", avgScores);
+            
+            return data;
+        }
+    }
+    
+    /**
+     * Constructor
+     */
+    public RecommendationSystem() {
+        this.userDatabase = new UserDatabase();
+        this.itemCatalog = new ItemCatalog();
+        this.ratingMatrix = new RatingMatrix();
+        this.analytics = new RecommendationAnalytics();
+        
+        initializeSystem();
+    }
+    
+    /**
+     * Initialize the recommendation system with sample data
+     */
+    private void initializeSystem() {
+        System.out.println("🚀 Initializing Recommendation System...");
+        
+        // Generate sample ratings
+        generateSampleRatings();
+        
+        // Initialize recommendation engines
+        this.collaborativeFilter = new CollaborativeFilter(ratingMatrix);
+        this.contentBasedFilter = new ContentBasedFilter(itemCatalog, userDatabase);
+        this.hybridRecommender = new HybridRecommender(collaborativeFilter, contentBasedFilter);
+        
+        System.out.println("✅ System initialized successfully!");
+    }
+    
+    /**
+     * Generate sample ratings for demonstration
+     */
+    private void generateSampleRatings() {
+        Random random = new Random(42);
+        
+        // Sample ratings based on user preferences
+        String[][] userItemRatings = {
+            // user1 (Alice) - likes Action and Drama
+            {"user1", "movie1", "4.5"}, // The Matrix (Action/Sci-Fi)
+            {"user1", "movie3", "4.8"}, // The Godfather (Drama)
+            {"user1", "movie4", "4.2"}, // Pulp Fiction (Drama)
+            {"user1", "book1", "4.0"}, // 1984
+            {"user1", "prod1", "3.8"}, // Smartphone
+            
+            // user2 (Bob) - likes Comedy and Action
+            {"user2", "movie1", "4.3"}, // The Matrix (Action)
+            {"user2", "movie5", "3.5"}, // Forrest Gump
+            {"user2", "book3", "4.5"}, // Harry Potter
+            {"user2", "prod2", "4.2"}, // Laptop
+            {"user2", "prod3", "4.0"}, // Headphones
+            
+            // user3 (Charlie) - likes Drama and Romance
+            {"user3", "movie2", "4.7"}, // Titanic (Romance/Drama)
+            {"user3", "movie5", "4.4"}, // Forrest Gump (Drama/Romance)
+            {"user3", "book2", "4.6"}, // To Kill a Mockingbird
+            {"user3", "book4", "4.3"}, // The Great Gatsby
+            {"user3", "prod4", "3.9"}, // Coffee Maker
+        };
+        
+        // Add ratings to the system
+        for (String[] ratingData : userItemRatings) {
+            String userId = ratingData[0];
+            String itemId = ratingData[1];
+            double rating = Double.parseDouble(ratingData[2]);
+            
+            Rating r = new Rating(userId, itemId, rating);
+            userDatabase.addRating(r);
+            ratingMatrix.addRating(userId, itemId, rating);
+        }
+        
+        // Generate some additional random ratings for diversity
+        List<String> userIds = new ArrayList<>(userDatabase.getAllUserIds());
+        List<String> itemIds = new ArrayList<>(itemCatalog.getAllItemIds());
+        
+        for (int i = 0; i < 20; i++) {
+            String userId = userIds.get(random.nextInt(userIds.size()));
+            String itemId = itemIds.get(random.nextInt(itemIds.size()));
+            
+            // Skip if already rated
+            if (ratingMatrix.getRating(userId, itemId) != null) continue;
+            
+            // Generate rating with some bias towards user preferences
+            double rating = 2.0 + random.nextDouble() * 3.0; // 2.0 to 5.0
+            
+            Rating r = new Rating(userId, itemId, rating);
+            userDatabase.addRating(r);
+            ratingMatrix.addRating(userId, itemId, rating);
+        }
+    }
+    
+    /**
+     * Get recommendations for a user using specified algorithm
+     */
+    public List<Recommendation> getRecommendations(String userId, String algorithm, int count) {
+        long startTime = System.currentTimeMillis();
+        List<Recommendation> recommendations = new ArrayList<>();
+        
+        try {
+            switch (algorithm.toLowerCase()) {
+                case "collaborative":
+                    recommendations = collaborativeFilter.recommend(userId, count);
+                    break;
+                case "content":
+                    recommendations = contentBasedFilter.recommend(userId, count);
+                    break;
+                case "hybrid":
+                    recommendations = hybridRecommender.recommend(userId, count);
+                    break;
+                default:
+                    recommendations = hybridRecommender.recommend(userId, count);
+                    algorithm = "hybrid";
+            }
+        } catch (Exception e) {
+            System.err.println("Error generating recommendations: " + e.getMessage());
+        }
+        
+        long responseTime = System.currentTimeMillis() - startTime;
+        analytics.recordRecommendation(algorithm, recommendations, responseTime);
+        
+        return recommendations;
+    }
+    
+    /**
+     * Add a new user to the system
+     */
+    public void addUser(String userId, String name, Map<String, Double> preferences) {
+        User user = new User(userId, name);
+        if (preferences != null) {
+            for (Map.Entry<String, Double> entry : preferences.entrySet()) {
+                user.addPreference(entry.getKey(), entry.getValue());
+            }
+        }
+        userDatabase.addUser(user);
+    }
+    
+    /**
+     * Add a new item to the catalog
+     */
+    public void addItem(String itemId, String title, String category, String[] genres) {
+        Item item = new Item(itemId, title, category);
+        if (genres != null) {
+            for (String genre : genres) {
+                item.addGenre(genre);
+            }
+        }
+        itemCatalog.addItem(item);
+    }
+    
+    /**
+     * Add a rating to the system
+     */
+    public void addRating(String userId, String itemId, double rating, String review) {
+        Rating r = new Rating(userId, itemId, rating, review);
+        userDatabase.addRating(r);
+        ratingMatrix.addRating(userId, itemId, rating);
+    }
+    
+    /**
+     * Display recommendations with detailed information
+     */
+    public void displayRecommendations(String userId, List<Recommendation> recommendations) {
+        User user = userDatabase.getUser(userId);
+        System.out.println("\n🎯 RECOMMENDATIONS FOR " + (user != null ? user.name : userId));
+        System.out.println("═".repeat(60));
+        
+        if (recommendations.isEmpty()) {
+            System.out.println("No recommendations available for this user.");
+            return;
+        }
+        
+        for (int i = 0; i < recommendations.size(); i++) {
+            Recommendation rec = recommendations.get(i);
+            Item item = itemCatalog.getItem(rec.itemId);
+            
+            System.out.printf("%d. %s%n", i + 1, item != null ? item.title : rec.itemId);
+            System.out.printf("   📊 Score: %.3f | 🤖 Algorithm: %s%n", rec.score, rec.algorithm);
+            System.out.printf("   💡 Reason: %s%n", rec.reason);
+            
+            if (item != null) {
+                System.out.printf("   📂 Category: %s | 🏷️ Genres: %s%n", 
+                                item.category, String.join(", ", item.genres));
+            }
+            
+            if (!rec.breakdown.isEmpty()) {
+                System.out.print("   🔍 Score Breakdown: ");
+                rec.breakdown.forEach((key, value) -> 
+                    System.out.printf("%s: %.3f ", key, value));
+                System.out.println();
+            }
+            
+            System.out.println();
+        }
+        System.out.println("═".repeat(60));
+    }
+    
+    /**
+     * Interactive command-line interface
+     */
+    public void startInteractive() {
+        Scanner scanner = new Scanner(System.in);
+        
+        System.out.println("🎬 AI RECOMMENDATION SYSTEM 🎬");
+        System.out.println("═".repeat(50));
+        System.out.println("Supporting Movies, Books, Products & More!");
+        System.out.println("Version: " + SYSTEM_VERSION);
+        System.out.println("═".repeat(50));
+        
+        while (true) {
+            System.out.println("\n📋 MAIN MENU:");
+            System.out.println("1. 🎯 Get Recommendations");
+            System.out.println("2. ⭐ Add Rating");
+            System.out.println("3. 👤 Add New User");
+            System.out.println("4. 📚 Add New Item");
+            System.out.println("5. 👥 View Users");
+            System.out.println("6. 📖 View Items");
+            System.out.println("7. 🔧 System Settings");
+            System.out.println("8. 📊 Analytics");
+            System.out.println("9. 🧪 Run Demo");
+            System.out.println("10. 🚪 Exit");
+            System.out.print("\nChoose option (1-10): ");
+            
+            try {
+                int choice = Integer.parseInt(scanner.nextLine().trim());
+                
+                switch (choice) {
+                    case 1:
+                        handleGetRecommendations(scanner);
+                        break;
+                    case 2:
+                        handleAddRating(scanner);
+                        break;
+                    case 3:
+                        handleAddUser(scanner);
+                        break;
+                    case 4:
+                        handleAddItem(scanner);
+                        break;
+                    case 5:
+                        displayUsers();
+                        break;
+                    case 6:
+                        displayItems();
+                        break;
+                    case 7:
+                        handleSettings(scanner);
+                        break;
+                    case 8:
+                        analytics.printStatistics();
+                        break;
+                    case 9:
+                        runDemo();
+                        break;
+                    case 10:
+                        System.out.println("👋 Thank you for using the Recommendation System!");
+                        return;
+                    default:
+                        System.out.println("❌ Please enter a number between 1 and 10");
+                }
+            } catch (NumberFormatException e) {
+                System.out.println("❌ Please enter a valid number!");
+            }
+        }
+    }
+    
+    private void handleGetRecommendations(Scanner scanner) {
+        System.out.println("\n📋 Available Users:");
+        List<User> users = userDatabase.getAllUsers();
+        for (int i = 0; i < users.size(); i++) {
+            System.out.println((i + 1) + ". " + users.get(i).name + " (" + users.get(i).userId + ")");
+        }
+        
+        System.out.print("Select user (1-" + users.size() + "): ");
+        try {
+            int userChoice = Integer.parseInt(scanner.nextLine().trim());
+            if (userChoice < 1 || userChoice > users.size()) {
+                System.out.println("❌ Invalid user selection");
+                return;
+            }
+            
+            String userId = users.get(userChoice - 1).userId;
+            
+            System.out.println("\n🤖 Select Algorithm:");
+            System.out.println("1. Collaborative Filtering");
+            System.out.println("2. Content-Based Filtering");
+            System.out.println("3. Hybrid Approach (Recommended)");
+            System.out.print("Choose (1-3): ");
+            
+            int algoChoice = Integer.parseInt(scanner.nextLine().trim());
+            String algorithm;
+            switch (algoChoice) {
+                case 1: algorithm = "collaborative"; break;
+                case 2: algorithm = "content"; break;
+                case 3: algorithm = "hybrid"; break;
+                default: algorithm = "hybrid"; break;
+            }
+            
+            System.out.print("Number of recommendations (1-20, default 10): ");
+            String countInput = scanner.nextLine().trim();
+            int count = countInput.isEmpty() ? DEFAULT_RECOMMENDATION_COUNT : Integer.parseInt(countInput);
+            count = Math.max(1, Math.min(20, count));
+            
+            System.out.println("\n🔮 Generating recommendations...");
+            List<Recommendation> recommendations = getRecommendations(userId, algorithm, count);
+            displayRecommendations(userId, recommendations);
+            
+        } catch (NumberFormatException e) {
+            System.out.println("❌ Please enter valid numbers!");
+        }
+    }
+    
+    private void handleAddRating(Scanner scanner) {
+        displayUsers();
+        System.out.print("Enter user ID: ");
+        String userId = scanner.nextLine().trim();
+        
+        if (userDatabase.getUser(userId) == null) {
+            System.out.println("❌ User not found!");
+            return;
+        }
+        
+        displayItems();
+        System.out.print("Enter item ID: ");
+        String itemId = scanner.nextLine().trim();
+        
+        if (itemCatalog.getItem(itemId) == null) {
+            System.out.println("❌ Item not found!");
+            return;
+        }
+        
+        System.out.print("Enter rating (1.0-5.0): ");
+        try {
+            double rating = Double.parseDouble(scanner.nextLine().trim());
+            if (rating < 1.0 || rating > 5.0) {
+                System.out.println("❌ Rating must be between 1.0 and 5.0");
+                return;
+            }
+            
+            System.out.print("Enter review (optional): ");
+            String review = scanner.nextLine().trim();
+            
+            addRating(userId, itemId, rating, review.isEmpty() ? null : review);
+            System.out.println("✅ Rating added successfully!");
+            
+        } catch (NumberFormatException e) {
+            System.out.println("❌ Please enter a valid rating!");
+        }
+    }
+    
+    private void handleAddUser(Scanner scanner) {
+        System.out.print("Enter user ID: ");
+        String userId = scanner.nextLine().trim();
+        
+        if (userDatabase.getUser(userId) != null) {
+            System.out.println("❌ User already exists!");
+            return;
+        }
+        
+        System.out.print("Enter user name: ");
+        String name = scanner.nextLine().trim();
+        
+        System.out.println("Enter preferences (optional, format: genre:weight,genre:weight):");
+        String prefsInput = scanner.nextLine().trim();
+        
+        Map<String, Double> preferences = new HashMap<>();
+        if (!prefsInput.isEmpty()) {
+            try {
+                String[] pairs = prefsInput.split(",");
+                for (String pair : pairs) {
+                    String[] parts = pair.trim().split(":");
+                    if (parts.length == 2) {
+                        preferences.put(parts[0].trim(), Double.parseDouble(parts[1].trim()));
+                    }
+                }
+            } catch (Exception e) {
+                System.out.println("⚠️ Invalid preference format, user created without preferences");
+            }
+        }
+        
+        addUser(userId, name, preferences);
+        System.out.println("✅ User added successfully!");
+    }
+    
+    private void handleAddItem(Scanner scanner) {
+        System.out.print("Enter item ID: ");
+        String itemId = scanner.nextLine().trim();
+        
+        if (itemCatalog.getItem(itemId) != null) {
+            System.out.println("❌ Item already exists!");
+            return;
+        }
+        
+        System.out.print("Enter item title: ");
+        String title = scanner.nextLine().trim();
+        
+        System.out.print("Enter category (Movie/Book/Product): ");
+        String category = scanner.nextLine().trim();
+        
+        System.out.print("Enter genres (comma-separated): ");
+        String genresInput = scanner.nextLine().trim();
+        String[] genres = genresInput.isEmpty() ? new String[0] : genresInput.split(",");
+        for (int i = 0; i < genres.length; i++) {
+            genres[i] = genres[i].trim();
+        }
+        
+        addItem(itemId, title, category, genres);
+        System.out.println("✅ Item added successfully!");
+    }
+    
+    private void handleSettings(Scanner scanner) {
+        System.out.println("\n⚙️ SYSTEM SETTINGS");
+        System.out.println("1. Set Hybrid Algorithm Weights");
+        System.out.println("2. Set Similarity Threshold");
+        System.out.println("3. Back to Main Menu");
+        System.out.print("Choose option: ");
+        
+        try {
+            int choice = Integer.parseInt(scanner.nextLine().trim());
+            
+            switch (choice) {
+                case 1:
+                    System.out.print("Collaborative weight (0.0-1.0, current: 0.6): ");
+                    double collabWeight = Double.parseDouble(scanner.nextLine().trim());
+                    double contentWeight = 1.0 - collabWeight;
+                    hybridRecommender.setWeights(collabWeight, contentWeight);
+                    System.out.printf("✅ Weights set to Collaborative: %.2f, Content: %.2f%n", 
+                                    collabWeight, contentWeight);
+                    break;
+                case 2:
+                    System.out.println("⚠️ Similarity threshold setting not implemented in this demo");
+                    break;
+                case 3:
+                    return;
+            }
+        } catch (NumberFormatException e) {
+            System.out.println("❌ Please enter valid numbers!");
+        }
+    }
+    
+    private void displayUsers() {
+        System.out.println("\n👥 USERS IN SYSTEM:");
+        for (User user : userDatabase.getAllUsers()) {
+            System.out.println("  " + user);
+        }
+    }
+    
+    private void displayItems() {
+        System.out.println("\n📚 ITEMS IN CATALOG:");
+        for (Item item : itemCatalog.getAllItems()) {
+            System.out.println("  " + item.itemId + ": " + item);
+        }
+    }
+    
+    /**
+     * Run comprehensive demonstration
+     */
+    public void runDemo() {
+        System.out.println("\n🧪 RECOMMENDATION SYSTEM DEMO");
+        System.out.println("═".repeat(50));
+        
+        System.out.println("📋 Demo Users and Their Preferences:");
+        for (User user : userDatabase.getAllUsers()) {
+            System.out.println("  " + user.name + ": " + user.preferences);
+        }
+        
+        System.out.println("\n🎬 Demonstrating Different Algorithms:");
+        
+        String[] algorithms = {"collaborative", "content", "hybrid"};
+        String demoUserId = "user1"; // Alice
+        
+        for (String algorithm : algorithms) {
+            System.out.println("\n--- " + algorithm.toUpperCase() + " FILTERING ---");
+            List<Recommendation> recs = getRecommendations(demoUserId, algorithm, 5);
+            
+            for (int i = 0; i < Math.min(3, recs.size()); i++) {
+                Recommendation rec = recs.get(i);
+                Item item = itemCatalog.getItem(rec.itemId);
+                System.out.printf("%d. %s (Score: %.3f)%n", 
+                                i + 1, item != null ? item.title : rec.itemId, rec.score);
+            }
+        }
+        
+        System.out.println("\n✅ Demo completed! Check analytics for performance metrics.");
+        analytics.printStatistics();
+    }
+    
+    /**
+     * API Methods for external integration
+     */
+    
+    /**
+     * REST-style API for getting recommendations
+     */
+    public Map<String, Object> getRecommendationsAPI(String userId, String algorithm, int count) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            List<Recommendation> recommendations = getRecommendations(userId, algorithm, count);
+            
+            List<Map<String, Object>> recList = new ArrayList<>();
+            for (Recommendation rec : recommendations) {
+                Map<String, Object> recData = new HashMap<>();
+                Item item = itemCatalog.getItem(rec.itemId);
+                
+                recData.put("itemId", rec.itemId);
+                recData.put("title", item != null ? item.title : "Unknown");
+                recData.put("category", item != null ? item.category : "Unknown");
+                recData.put("genres", item != null ? new ArrayList<>(item.genres) : new ArrayList<>());
+                recData.put("score", rec.score);
+                recData.put("reason", rec.reason);
+                recData.put("algorithm", rec.algorithm);
+                recData.put("scoreBreakdown", rec.breakdown);
+                
+                recList.add(recData);
+            }
+            
+            response.put("success", true);
+            response.put("userId", userId);
+            response.put("algorithm", algorithm);
+            response.put("recommendations", recList);
+            response.put("timestamp", System.currentTimeMillis());
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("error", e.getMessage());
+        }
+        
+        return response;
+    }
+    
+    /**
+     * Get system status and health information
+     */
+    public Map<String, Object> getSystemStatus() {
+        Map<String, Object> status = new HashMap<>();
+        
+        status.put("version", SYSTEM_VERSION);
+        status.put("users", userDatabase.getAllUsers().size());
+        status.put("items", itemCatalog.getAllItems().size());
+        status.put("ratings", userDatabase.getAllUsers().stream()
+                .mapToInt(user -> userDatabase.getUserRatings(user.userId).size())
+                .sum());
+        status.put("analytics", analytics.getAnalyticsData());
+        status.put("healthy", true);
+        status.put("timestamp", System.currentTimeMillis());
+        
+        return status;
+    }
+    
+    /**
+     * Export recommendations and data
+     */
+    public void exportData(String filename) {
+        try (PrintWriter writer = new PrintWriter(new FileWriter(filename))) {
+            writer.println("# Recommendation System Export");
+            writer.println("# Generated: " + new Date());
+            writer.println();
+            
+            writer.println("## Users");
+            for (User user : userDatabase.getAllUsers()) {
+                writer.println(user.userId + "," + user.name + "," + user.preferences);
+            }
+            
+            writer.println("\n## Items");
+            for (Item item : itemCatalog.getAllItems()) {
+                writer.println(item.itemId + "," + item.title + "," + item.category + "," + item.genres);
+            }
+            
+            writer.println("\n## Ratings");
+            for (User user : userDatabase.getAllUsers()) {
+                for (Rating rating : userDatabase.getUserRatings(user.userId)) {
+                    writer.println(rating.userId + "," + rating.itemId + "," + rating.rating);
+                }
+            }
+            
+            System.out.println("✅ Data exported to: " + filename);
+            
+        } catch (IOException e) {
+            System.err.println("❌ Export failed: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Performance benchmark
+     */
+    public void runBenchmark(int iterations) {
+        System.out.println("\n🚀 PERFORMANCE BENCHMARK");
+        System.out.println("═".repeat(40));
+        System.out.println("Running " + iterations + " recommendation requests...");
+        
+        String[] algorithms = {"collaborative", "content", "hybrid"};
+        List<String> userIds = new ArrayList<>(userDatabase.getAllUserIds());
+        Random random = new Random();
+        
+        Map<String, List<Long>> algorithmTimes = new HashMap<>();
+        
+        for (String algorithm : algorithms) {
+            algorithmTimes.put(algorithm, new ArrayList<>());
+            
+            for (int i = 0; i < iterations; i++) {
+                String userId = userIds.get(random.nextInt(userIds.size()));
+                
+                long startTime = System.currentTimeMillis();
+                getRecommendations(userId, algorithm, 10);
+                long duration = System.currentTimeMillis() - startTime;
+                
+                algorithmTimes.get(algorithm).add(duration);
+                
+                if ((i + 1) % (iterations / 10) == 0) {
+                    System.out.print(".");
+                }
+            }
+            System.out.println(" " + algorithm + " completed");
+        }
+        
+        System.out.println("\n📊 BENCHMARK RESULTS:");
+        for (String algorithm : algorithms) {
+            List<Long> times = algorithmTimes.get(algorithm);
+            double avgTime = times.stream().mapToLong(Long::longValue).average().orElse(0.0);
+            long minTime = times.stream().mapToLong(Long::longValue).min().orElse(0);
+            long maxTime = times.stream().mapToLong(Long::longValue).max().orElse(0);
+            
+            System.out.printf("%s: Avg %.2f ms, Min %d ms, Max %d ms%n", 
+                            algorithm, avgTime, minTime, maxTime);
+        }
+        System.out.println("═".repeat(40));
+    }
+    
+    /**
+     * Main method - Entry point
+     */
+    public static void main(String[] args) {
+        try {
+            RecommendationSystem system = new RecommendationSystem();
+            
+            if (args.length > 0) {
+                switch (args[0].toLowerCase()) {
+                    case "--demo":
+                        system.runDemo();
+                        break;
+                        
+                    case "--benchmark":
+                        int iterations = args.length > 1 ? Integer.parseInt(args[1]) : 100;
+                        system.runBenchmark(iterations);
+                        break;
+                        
+                    case "--recommend":
+                        if (args.length >= 3) {
+                            String userId = args[1];
+                            String algorithm = args[2];
+                            int count = args.length > 3 ? Integer.parseInt(args[3]) : DEFAULT_RECOMMENDATION_COUNT;
+                            
+                            List<Recommendation> recs = system.getRecommendations(userId, algorithm, count);
+                            system.displayRecommendations(userId, recs);
+                        } else {
+                            System.out.println("Usage: --recommend <userId> <algorithm> [count]");
+                        }
+                        break;
+                        
+                    case "--status":
+                        Map<String, Object> status = system.getSystemStatus();
+                        System.out.println("📊 SYSTEM STATUS:");
+                        status.forEach((key, value) -> System.out.println(key + ": " + value));
+                        break;
+                        
+                    case "--export":
+                        String filename = args.length > 1 ? args[1] : "recommendations_export.txt";
+                        system.exportData(filename);
+                        break;
+                        
+                    case "--help":
+                        printUsage();
+                        break;
+                        
+                    default:
+                        System.out.println("Unknown option: " + args[0]);
+                        printUsage();
+                }
+            } else {
+                // Start interactive mode
+                system.startInteractive();
+            }
+            
+        } catch (Exception e) {
+            System.err.println("❌ System error: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Print usage information
+     */
+    private static void printUsage() {
+        System.out.println("\n🎬 AI RECOMMENDATION SYSTEM - Usage");
+        System.out.println("═".repeat(50));
+        System.out.println("Interactive mode:");
+        System.out.println("  java RecommendationSystem");
+        System.out.println();
+        System.out.println("Command line options:");
+        System.out.println("  --demo                    Run demonstration");
+        System.out.println("  --benchmark [iterations]  Performance benchmark");
+        System.out.println("  --recommend <user> <algo> Get recommendations");
+        System.out.println("    Algorithms: collaborative, content, hybrid");
+        System.out.println("  --status                  Show system status");
+        System.out.println("  --export [filename]       Export data");
+        System.out.println("  --help                    Show this help");
+        System.out.println("═".repeat(50));
+    }
+}
