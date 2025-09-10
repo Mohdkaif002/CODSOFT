@@ -1,0 +1,1169 @@
+import java.awt.image.BufferedImage;
+import java.io.*;
+import java.net.URL;
+import java.nio.file.*;
+import java.util.*;
+import javax.imageio.ImageIO;
+
+/**
+ * AI Image Captioning System
+ * Combines Computer Vision and Natural Language Processing
+ * Features: Pre-trained model simulation, RNN/Transformer-like caption generation
+ * Highly portable and executable in any Java environment
+ * 
+ * @author AI Assistant
+ * @version 1.0
+ */
+public class ImageCaptioningAI {
+    
+    // System constants
+    private static final String MODEL_VERSION = "1.0";
+    private static final int MAX_CAPTION_LENGTH = 50;
+    private static final int FEATURE_VECTOR_SIZE = 2048;
+    
+    // Core components
+    private ImageFeatureExtractor featureExtractor;
+    private CaptionGenerator captionGenerator;
+    private ImagePreprocessor preprocessor;
+    private ModelManager modelManager;
+    private CaptionDatabase captionDB;
+    
+    /**
+     * Image Feature Extractor - Simulates VGG/ResNet functionality
+     */
+    public static class ImageFeatureExtractor {
+        private Map<String, double[]> pretrainedFeatures;
+        private Random random;
+        
+        public ImageFeatureExtractor() {
+            this.pretrainedFeatures = new HashMap<>();
+            this.random = new Random(42); // Fixed seed for consistency
+            initializePretrainedFeatures();
+        }
+        
+        /**
+         * Initialize simulated pre-trained features
+         * In production, this would load actual VGG/ResNet weights
+         */
+        private void initializePretrainedFeatures() {
+            // Simulate common object features
+            String[] commonObjects = {
+                "person", "car", "dog", "cat", "house", "tree", "flower", 
+                "mountain", "ocean", "building", "road", "sky", "grass", "food"
+            };
+            
+            for (String object : commonObjects) {
+                pretrainedFeatures.put(object, generateFeatureVector());
+            }
+        }
+        
+        /**
+         * Extract features from image (simulated CNN feature extraction)
+         */
+        public ImageFeatures extractFeatures(BufferedImage image) {
+            if (image == null) {
+                throw new IllegalArgumentException("Image cannot be null");
+            }
+            
+            // Simulate CNN feature extraction process
+            System.out.println("🔍 Extracting image features...");
+            
+            // Analyze image properties
+            int width = image.getWidth();
+            int height = image.getHeight();
+            double aspectRatio = (double) width / height;
+            
+            // Simulate color analysis
+            Map<String, Double> colorFeatures = analyzeColors(image);
+            
+            // Simulate object detection
+            List<DetectedObject> detectedObjects = detectObjects(image);
+            
+            // Generate feature vector (simulating VGG/ResNet output)
+            double[] featureVector = generateContextualFeatureVector(colorFeatures, detectedObjects, aspectRatio);
+            
+            // Calculate confidence scores
+            Map<String, Double> confidenceScores = calculateConfidenceScores(detectedObjects);
+            
+            return new ImageFeatures(featureVector, detectedObjects, colorFeatures, confidenceScores);
+        }
+        
+        /**
+         * Analyze dominant colors in image
+         */
+        private Map<String, Double> analyzeColors(BufferedImage image) {
+            Map<String, Double> colors = new HashMap<>();
+            Map<String, Integer> colorCounts = new HashMap<>();
+            
+            // Sample pixels for color analysis
+            int sampleRate = Math.max(1, Math.min(image.getWidth(), image.getHeight()) / 20);
+            
+            for (int x = 0; x < image.getWidth(); x += sampleRate) {
+                for (int y = 0; y < image.getHeight(); y += sampleRate) {
+                    int rgb = image.getRGB(x, y);
+                    String colorName = classifyColor(rgb);
+                    colorCounts.put(colorName, colorCounts.getOrDefault(colorName, 0) + 1);
+                }
+            }
+            
+            // Convert counts to percentages
+            int totalSamples = colorCounts.values().stream().mapToInt(Integer::intValue).sum();
+            for (Map.Entry<String, Integer> entry : colorCounts.entrySet()) {
+                colors.put(entry.getKey(), (double) entry.getValue() / totalSamples);
+            }
+            
+            return colors;
+        }
+        
+        /**
+         * Classify RGB color into basic color categories
+         */
+        private String classifyColor(int rgb) {
+            int r = (rgb >> 16) & 0xFF;
+            int g = (rgb >> 8) & 0xFF;
+            int b = rgb & 0xFF;
+            
+            // Simple color classification
+            if (r > 200 && g > 200 && b > 200) return "white";
+            if (r < 50 && g < 50 && b < 50) return "black";
+            if (r > g + 50 && r > b + 50) return "red";
+            if (g > r + 50 && g > b + 50) return "green";
+            if (b > r + 50 && b > g + 50) return "blue";
+            if (r > 150 && g > 150 && b < 100) return "yellow";
+            if (r > 100 && g < 100 && b < 100) return "brown";
+            return "gray";
+        }
+        
+        /**
+         * Simulate object detection (would use YOLO/R-CNN in production)
+         */
+        private List<DetectedObject> detectObjects(BufferedImage image) {
+            List<DetectedObject> objects = new ArrayList<>();
+            
+            // Simulate object detection based on image characteristics
+            int width = image.getWidth();
+            int height = image.getHeight();
+            
+            // Use image dimensions and random factors to simulate detection
+            if (width > height * 1.5) { // Landscape
+                objects.add(new DetectedObject("landscape", 0.85, 0, 0, width, height));
+                if (random.nextDouble() > 0.5) objects.add(new DetectedObject("mountain", 0.75, width/4, 0, width/2, height/3));
+                if (random.nextDouble() > 0.6) objects.add(new DetectedObject("sky", 0.90, 0, 0, width, height/3));
+            } else if (height > width * 1.2) { // Portrait
+                objects.add(new DetectedObject("person", 0.80, width/4, height/6, width/2, height*2/3));
+            } else { // Square-ish
+                objects.add(new DetectedObject("object", 0.70, width/4, height/4, width/2, height/2));
+            }
+            
+            // Add random common objects
+            String[] commonObjects = {"car", "building", "tree", "grass", "road"};
+            for (String obj : commonObjects) {
+                if (random.nextDouble() > 0.7) {
+                    objects.add(new DetectedObject(obj, 0.60 + random.nextDouble() * 0.3, 
+                                                 random.nextInt(width/2), random.nextInt(height/2),
+                                                 width/4, height/4));
+                }
+            }
+            
+            return objects;
+        }
+        
+        /**
+         * Generate contextual feature vector
+         */
+        private double[] generateContextualFeatureVector(Map<String, Double> colors, 
+                                                       List<DetectedObject> objects, 
+                                                       double aspectRatio) {
+            double[] features = new double[FEATURE_VECTOR_SIZE];
+            
+            // Incorporate color information
+            int idx = 0;
+            for (String color : Arrays.asList("red", "green", "blue", "yellow", "white", "black")) {
+                features[idx++] = colors.getOrDefault(color, 0.0);
+            }
+            
+            // Incorporate object information
+            for (DetectedObject obj : objects) {
+                if (idx < FEATURE_VECTOR_SIZE - 10) {
+                    features[idx++] = obj.confidence;
+                    features[idx++] = (double) obj.width / 1000.0; // Normalized size
+                    features[idx++] = (double) obj.height / 1000.0;
+                }
+            }
+            
+            // Add aspect ratio and other geometric features
+            features[idx++] = aspectRatio;
+            
+            // Fill remaining with contextual features
+            while (idx < FEATURE_VECTOR_SIZE) {
+                features[idx++] = random.nextGaussian() * 0.1; // Small random variation
+            }
+            
+            return features;
+        }
+        
+        /**
+         * Calculate confidence scores for detected objects
+         */
+        private Map<String, Double> calculateConfidenceScores(List<DetectedObject> objects) {
+            Map<String, Double> scores = new HashMap<>();
+            for (DetectedObject obj : objects) {
+                scores.put(obj.label, obj.confidence);
+            }
+            return scores;
+        }
+        
+        /**
+         * Generate random feature vector (utility method)
+         */
+        private double[] generateFeatureVector() {
+            double[] vector = new double[FEATURE_VECTOR_SIZE];
+            for (int i = 0; i < vector.length; i++) {
+                vector[i] = random.nextGaussian();
+            }
+            return vector;
+        }
+    }
+    
+    /**
+     * Caption Generator - Simulates RNN/Transformer functionality
+     */
+    public static class CaptionGenerator {
+        private Map<String, List<String>> templatePatterns;
+        private Map<String, Double> vocabularyWeights;
+        private Random random;
+        
+        public CaptionGenerator() {
+            this.templatePatterns = new HashMap<>();
+            this.vocabularyWeights = new HashMap<>();
+            this.random = new Random(42);
+            initializeLanguageModel();
+        }
+        
+        /**
+         * Initialize language model patterns
+         * Simulates pre-trained RNN/Transformer weights
+         */
+        private void initializeLanguageModel() {
+            // Initialize template patterns for different scenarios
+            templatePatterns.put("person", Arrays.asList(
+                "A person standing in the scene",
+                "Someone posing for a photo",
+                "A person in the image",
+                "Individual captured in the frame"
+            ));
+            
+            templatePatterns.put("landscape", Arrays.asList(
+                "A beautiful landscape view",
+                "Scenic outdoor scenery",
+                "Natural landscape with mountains and sky",
+                "Panoramic view of the countryside"
+            ));
+            
+            templatePatterns.put("building", Arrays.asList(
+                "A building structure in the scene",
+                "Architectural structure visible",
+                "Urban building in the background",
+                "Modern building architecture"
+            ));
+            
+            templatePatterns.put("vehicle", Arrays.asList(
+                "A vehicle on the road",
+                "Car visible in the scene",
+                "Transportation vehicle",
+                "Automobile in the image"
+            ));
+            
+            // Initialize vocabulary weights
+            String[] commonWords = {
+                "the", "a", "an", "and", "or", "with", "in", "on", "at", "by",
+                "beautiful", "large", "small", "colorful", "bright", "dark",
+                "standing", "sitting", "walking", "running", "looking"
+            };
+            
+            for (String word : commonWords) {
+                vocabularyWeights.put(word, 0.5 + random.nextDouble() * 0.5);
+            }
+        }
+        
+        /**
+         * Generate caption using simulated RNN/Transformer approach
+         */
+        public GeneratedCaption generateCaption(ImageFeatures features) {
+            System.out.println("📝 Generating caption...");
+            
+            // Analyze features to determine caption strategy
+            List<String> captionParts = new ArrayList<>();
+            double totalConfidence = 0.0;
+            
+            // Process detected objects
+            List<DetectedObject> sortedObjects = new ArrayList<>(features.detectedObjects);
+            sortedObjects.sort((a, b) -> Double.compare(b.confidence, a.confidence));
+            
+            // Start with most confident object
+            if (!sortedObjects.isEmpty()) {
+                DetectedObject primary = sortedObjects.get(0);
+                List<String> templates = templatePatterns.getOrDefault(primary.label, 
+                    Arrays.asList("An object in the image"));
+                String baseCaption = templates.get(random.nextInt(templates.size()));
+                captionParts.add(baseCaption);
+                totalConfidence += primary.confidence;
+            }
+            
+            // Add color information
+            String dominantColor = getDominantColor(features.colorFeatures);
+            if (dominantColor != null && random.nextDouble() > 0.6) {
+                captionParts.add("with " + dominantColor + " tones");
+                totalConfidence += 0.3;
+            }
+            
+            // Add contextual information
+            if (sortedObjects.size() > 1) {
+                DetectedObject secondary = sortedObjects.get(1);
+                if (secondary.confidence > 0.6) {
+                    captionParts.add("and " + secondary.label + " nearby");
+                    totalConfidence += secondary.confidence * 0.5;
+                }
+            }
+            
+            // Combine parts into coherent caption
+            String finalCaption = String.join(" ", captionParts);
+            finalCaption = refineCaption(finalCaption);
+            
+            // Calculate overall confidence
+            double confidence = Math.min(0.95, totalConfidence / sortedObjects.size());
+            
+            // Generate alternative captions
+            List<String> alternatives = generateAlternatives(features, 3);
+            
+            return new GeneratedCaption(finalCaption, confidence, alternatives);
+        }
+        
+        /**
+         * Get dominant color from color features
+         */
+        private String getDominantColor(Map<String, Double> colorFeatures) {
+            return colorFeatures.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(null);
+        }
+        
+        /**
+         * Refine caption using language model rules
+         */
+        private String refineCaption(String caption) {
+            // Basic grammar improvements
+            caption = caption.trim();
+            if (!caption.isEmpty()) {
+                caption = Character.toUpperCase(caption.charAt(0)) + caption.substring(1);
+                if (!caption.endsWith(".") && !caption.endsWith("!") && !caption.endsWith("?")) {
+                    caption += ".";
+                }
+            }
+            
+            // Remove redundant words
+            caption = caption.replaceAll("\\s+", " ");
+            caption = caption.replaceAll("\\b(the the|a a|and and)\\b", "$1".split(" ")[0]);
+            
+            return caption;
+        }
+        
+        /**
+         * Generate alternative captions
+         */
+        private List<String> generateAlternatives(ImageFeatures features, int count) {
+            List<String> alternatives = new ArrayList<>();
+            
+            for (int i = 0; i < count; i++) {
+                // Create variations by changing templates and word choices
+                String alternative = generateVariation(features);
+                if (!alternative.isEmpty()) {
+                    alternatives.add(alternative);
+                }
+            }
+            
+            return alternatives;
+        }
+        
+        /**
+         * Generate caption variation
+         */
+        private String generateVariation(ImageFeatures features) {
+            if (features.detectedObjects.isEmpty()) {
+                return "An interesting image with various elements.";
+            }
+            
+            DetectedObject obj = features.detectedObjects.get(random.nextInt(features.detectedObjects.size()));
+            String[] variations = {
+                "This image shows " + obj.label,
+                "A photo featuring " + obj.label,
+                "An image containing " + obj.label,
+                "Picture of " + obj.label + " in the scene"
+            };
+            
+            return variations[random.nextInt(variations.length)] + ".";
+        }
+    }
+    
+    /**
+     * Image Preprocessor - Handle various image formats and sizes
+     */
+    public static class ImagePreprocessor {
+        private static final int TARGET_WIDTH = 224;
+        private static final int TARGET_HEIGHT = 224;
+        
+        /**
+         * Preprocess image for feature extraction
+         */
+        public BufferedImage preprocessImage(BufferedImage original) {
+            if (original == null) return null;
+            
+            System.out.println("🖼️  Preprocessing image...");
+            
+            // Resize image
+            BufferedImage resized = resizeImage(original, TARGET_WIDTH, TARGET_HEIGHT);
+            
+            // Normalize colors (simulate CNN preprocessing)
+            BufferedImage normalized = normalizeImage(resized);
+            
+            return normalized;
+        }
+        
+        /**
+         * Resize image to target dimensions
+         */
+        private BufferedImage resizeImage(BufferedImage original, int targetWidth, int targetHeight) {
+            BufferedImage resized = new BufferedImage(targetWidth, targetHeight, BufferedImage.TYPE_INT_RGB);
+            resized.getGraphics().drawImage(original.getScaledInstance(targetWidth, targetHeight, 
+                                          java.awt.Image.SCALE_SMOOTH), 0, 0, null);
+            return resized;
+        }
+        
+        /**
+         * Normalize image colors
+         */
+        private BufferedImage normalizeImage(BufferedImage image) {
+            // Simple normalization - in production would apply CNN-specific normalization
+            BufferedImage normalized = new BufferedImage(image.getWidth(), image.getHeight(), 
+                                                       BufferedImage.TYPE_INT_RGB);
+            
+            for (int x = 0; x < image.getWidth(); x++) {
+                for (int y = 0; y < image.getHeight(); y++) {
+                    int rgb = image.getRGB(x, y);
+                    // Apply normalization (simplified)
+                    normalized.setRGB(x, y, rgb);
+                }
+            }
+            
+            return normalized;
+        }
+        
+        /**
+         * Load image from file path
+         */
+        public BufferedImage loadImage(String imagePath) throws IOException {
+            File imageFile = new File(imagePath);
+            if (!imageFile.exists()) {
+                throw new FileNotFoundException("Image file not found: " + imagePath);
+            }
+            return ImageIO.read(imageFile);
+        }
+        
+        /**
+         * Load image from URL
+         */
+        public BufferedImage loadImageFromURL(String imageURL) throws IOException {
+            URL url = new URL(imageURL);
+            return ImageIO.read(url);
+        }
+    }
+    
+    /**
+     * Data structures for image features
+     */
+    public static class ImageFeatures {
+        final double[] featureVector;
+        final List<DetectedObject> detectedObjects;
+        final Map<String, Double> colorFeatures;
+        final Map<String, Double> confidenceScores;
+        
+        public ImageFeatures(double[] featureVector, List<DetectedObject> detectedObjects,
+                           Map<String, Double> colorFeatures, Map<String, Double> confidenceScores) {
+            this.featureVector = featureVector;
+            this.detectedObjects = detectedObjects;
+            this.colorFeatures = colorFeatures;
+            this.confidenceScores = confidenceScores;
+        }
+    }
+    
+    public static class DetectedObject {
+        final String label;
+        final double confidence;
+        final int x, y, width, height;
+        
+        public DetectedObject(String label, double confidence, int x, int y, int width, int height) {
+            this.label = label;
+            this.confidence = confidence;
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+        }
+        
+        @Override
+        public String toString() {
+            return String.format("%s (%.2f)", label, confidence);
+        }
+    }
+    
+    public static class GeneratedCaption {
+        final String caption;
+        final double confidence;
+        final List<String> alternatives;
+        
+        public GeneratedCaption(String caption, double confidence, List<String> alternatives) {
+            this.caption = caption;
+            this.confidence = confidence;
+            this.alternatives = alternatives;
+        }
+        
+        @Override
+        public String toString() {
+            return String.format("Caption: %s (Confidence: %.2f)", caption, confidence);
+        }
+    }
+    
+    /**
+     * Caption Database for storing and retrieving captions
+     */
+    public static class CaptionDatabase {
+        private Map<String, List<GeneratedCaption>> imageHistory;
+        private Map<String, Long> processingTimes;
+        
+        public CaptionDatabase() {
+            this.imageHistory = new HashMap<>();
+            this.processingTimes = new HashMap<>();
+        }
+        
+        public void storeCaption(String imageId, GeneratedCaption caption, long processingTime) {
+            imageHistory.computeIfAbsent(imageId, k -> new ArrayList<>()).add(caption);
+            processingTimes.put(imageId, processingTime);
+        }
+        
+        public List<GeneratedCaption> getCaptionHistory(String imageId) {
+            return imageHistory.getOrDefault(imageId, new ArrayList<>());
+        }
+        
+        public void printStatistics() {
+            System.out.println("\n📊 SYSTEM STATISTICS");
+            System.out.println("═".repeat(40));
+            System.out.println("Images processed: " + imageHistory.size());
+            System.out.println("Total captions generated: " + 
+                             imageHistory.values().stream().mapToInt(List::size).sum());
+            double avgTime = processingTimes.values().stream().mapToLong(Long::longValue).average().orElse(0);
+            System.out.println("Average processing time: " + String.format("%.2f ms", avgTime));
+            System.out.println("═".repeat(40));
+        }
+    }
+    
+    /**
+     * Model Manager - Handle model loading and configuration
+     */
+    public static class ModelManager {
+        private String currentModel;
+        private Map<String, String> modelConfigs;
+        
+        public ModelManager() {
+            this.modelConfigs = new HashMap<>();
+            initializeModels();
+            this.currentModel = "VGG16-LSTM";
+        }
+        
+        private void initializeModels() {
+            modelConfigs.put("VGG16-LSTM", "VGG16 + LSTM Caption Generator");
+            modelConfigs.put("ResNet-Transformer", "ResNet50 + Transformer Caption Generator");
+            modelConfigs.put("EfficientNet-GPT", "EfficientNet + GPT-style Caption Generator");
+        }
+        
+        public void switchModel(String modelName) {
+            if (modelConfigs.containsKey(modelName)) {
+                this.currentModel = modelName;
+                System.out.println("✅ Switched to model: " + modelConfigs.get(modelName));
+            } else {
+                System.out.println("❌ Model not found: " + modelName);
+            }
+        }
+        
+        public String getCurrentModel() {
+            return currentModel;
+        }
+        
+        public Set<String> getAvailableModels() {
+            return modelConfigs.keySet();
+        }
+    }
+    
+    /**
+     * Constructor
+     */
+    public ImageCaptioningAI() {
+        this.featureExtractor = new ImageFeatureExtractor();
+        this.captionGenerator = new CaptionGenerator();
+        this.preprocessor = new ImagePreprocessor();
+        this.modelManager = new ModelManager();
+        this.captionDB = new CaptionDatabase();
+    }
+    
+    /**
+     * Main caption generation method
+     */
+    public GeneratedCaption generateCaption(String imagePath) {
+        long startTime = System.currentTimeMillis();
+        
+        try {
+            System.out.println("🚀 Starting image captioning process...");
+            System.out.println("📁 Loading image: " + imagePath);
+            
+            // Load and preprocess image
+            BufferedImage image = preprocessor.loadImage(imagePath);
+            BufferedImage processedImage = preprocessor.preprocessImage(image);
+            
+            // Extract features
+            ImageFeatures features = featureExtractor.extractFeatures(processedImage);
+            
+            // Generate caption
+            GeneratedCaption caption = captionGenerator.generateCaption(features);
+            
+            long processingTime = System.currentTimeMillis() - startTime;
+            
+            // Store in database
+            String imageId = Paths.get(imagePath).getFileName().toString();
+            captionDB.storeCaption(imageId, caption, processingTime);
+            
+            System.out.println("✅ Caption generation completed!");
+            System.out.println("⏱️  Processing time: " + processingTime + "ms");
+            
+            return caption;
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error processing image: " + e.getMessage());
+            return new GeneratedCaption("Error: Unable to generate caption", 0.0, new ArrayList<>());
+        }
+    }
+    
+    /**
+     * Generate caption from URL
+     */
+    public GeneratedCaption generateCaptionFromURL(String imageURL) {
+        long startTime = System.currentTimeMillis();
+        
+        try {
+            System.out.println("🌐 Loading image from URL: " + imageURL);
+            
+            BufferedImage image = preprocessor.loadImageFromURL(imageURL);
+            BufferedImage processedImage = preprocessor.preprocessImage(image);
+            
+            ImageFeatures features = featureExtractor.extractFeatures(processedImage);
+            GeneratedCaption caption = captionGenerator.generateCaption(features);
+            
+            long processingTime = System.currentTimeMillis() - startTime;
+            
+            String imageId = "url_" + imageURL.hashCode();
+            captionDB.storeCaption(imageId, caption, processingTime);
+            
+            System.out.println("✅ URL image captioning completed!");
+            
+            return caption;
+            
+        } catch (Exception e) {
+            System.err.println("❌ Error processing URL image: " + e.getMessage());
+            return new GeneratedCaption("Error: Unable to process URL image", 0.0, new ArrayList<>());
+        }
+    }
+    
+    /**
+     * Batch process multiple images
+     */
+    public List<GeneratedCaption> batchGenerateCaptions(String[] imagePaths) {
+        List<GeneratedCaption> captions = new ArrayList<>();
+        
+        System.out.println("📚 Starting batch processing of " + imagePaths.length + " images...");
+        
+        for (int i = 0; i < imagePaths.length; i++) {
+            System.out.println("\n--- Processing image " + (i + 1) + "/" + imagePaths.length + " ---");
+            GeneratedCaption caption = generateCaption(imagePaths[i]);
+            captions.add(caption);
+        }
+        
+        System.out.println("\n✅ Batch processing completed!");
+        return captions;
+    }
+    
+    /**
+     * Interactive CLI interface
+     */
+    public void startInteractive() {
+        Scanner scanner = new Scanner(System.in);
+        
+        System.out.println("🎨 AI IMAGE CAPTIONING SYSTEM 🎨");
+        System.out.println("═".repeat(50));
+        System.out.println("Current Model: " + modelManager.getCurrentModel());
+        System.out.println("═".repeat(50));
+        
+        while (true) {
+            System.out.println("\n📋 MAIN MENU:");
+            System.out.println("1. 🖼️  Caption Single Image");
+            System.out.println("2. 🌐 Caption Image from URL");
+            System.out.println("3. 📚 Batch Process Images");
+            System.out.println("4. 🔧 Switch Model");
+            System.out.println("5. 📊 View Statistics");
+            System.out.println("6. 🧪 Run Demo");
+            System.out.println("7. 🚪 Exit");
+            System.out.print("\nChoose option (1-7): ");
+            
+            try {
+                int choice = Integer.parseInt(scanner.nextLine().trim());
+                
+                switch (choice) {
+                    case 1:
+                        handleSingleImage(scanner);
+                        break;
+                    case 2:
+                        handleURLImage(scanner);
+                        break;
+                    case 3:
+                        handleBatchProcess(scanner);
+                        break;
+                    case 4:
+                        handleModelSwitch(scanner);
+                        break;
+                    case 5:
+                        captionDB.printStatistics();
+                        break;
+                    case 6:
+                        runDemo();
+                        break;
+                    case 7:
+                        System.out.println("👋 Thank you for using AI Image Captioning System!");
+                        return;
+                    default:
+                        System.out.println("❌ Please enter a number between 1 and 7");
+                }
+            } catch (NumberFormatException e) {
+                System.out.println("❌ Please enter a valid number!");
+            }
+        }
+    }
+    
+    private void handleSingleImage(Scanner scanner) {
+        System.out.print("📁 Enter image path: ");
+        String imagePath = scanner.nextLine().trim();
+        
+        if (imagePath.isEmpty()) {
+            System.out.println("❌ Please enter a valid image path");
+            return;
+        }
+        
+        GeneratedCaption result = generateCaption(imagePath);
+        displayCaptionResult(result);
+    }
+    
+    private void handleURLImage(Scanner scanner) {
+        System.out.print("🌐 Enter image URL: ");
+        String imageURL = scanner.nextLine().trim();
+        
+        if (imageURL.isEmpty()) {
+            System.out.println("❌ Please enter a valid URL");
+            return;
+        }
+        
+        GeneratedCaption result = generateCaptionFromURL(imageURL);
+        displayCaptionResult(result);
+    }
+    
+    private void handleBatchProcess(Scanner scanner) {
+        System.out.print("📁 Enter directory path or comma-separated file paths: ");
+        String input = scanner.nextLine().trim();
+        
+        if (input.isEmpty()) {
+            System.out.println("❌ Please enter valid paths");
+            return;
+        }
+        
+        String[] paths = input.split(",");
+        for (int i = 0; i < paths.length; i++) {
+            paths[i] = paths[i].trim();
+        }
+        
+        List<GeneratedCaption> results = batchGenerateCaptions(paths);
+        
+        System.out.println("\n📋 BATCH RESULTS:");
+        for (int i = 0; i < results.size(); i++) {
+            System.out.println((i + 1) + ". " + results.get(i).caption);
+        }
+    }
+    
+    private void handleModelSwitch(Scanner scanner) {
+        System.out.println("Available models:");
+        int index = 1;
+        List<String> models = new ArrayList<>(modelManager.getAvailableModels());
+        for (String model : models) {
+            System.out.println(index++ + ". " + model);
+        }
+        
+        System.out.print("Choose model (1-" + models.size() + "): ");
+        try {
+            int choice = Integer.parseInt(scanner.nextLine().trim());
+            if (choice >= 1 && choice <= models.size()) {
+                modelManager.switchModel(models.get(choice - 1));
+            } else {
+                System.out.println("❌ Invalid choice");
+            }
+        } catch (NumberFormatException e) {
+            System.out.println("❌ Please enter a valid number");
+        }
+    }
+    
+    private void displayCaptionResult(GeneratedCaption result) {
+        System.out.println("\n🎯 CAPTION RESULT:");
+        System.out.println("═".repeat(40));
+        System.out.println("📝 Caption: " + result.caption);
+        System.out.println("📊 Confidence: " + String.format("%.2f%%", result.confidence * 100));
+        
+        if (!result.alternatives.isEmpty()) {
+            System.out.println("\n💡 Alternative captions:");
+            for (int i = 0; i < result.alternatives.size(); i++) {
+                System.out.println("   " + (i + 1) + ". " + result.alternatives.get(i));
+            }
+        }
+        System.out.println("═".repeat(40));
+    }
+    
+    /**
+     * Run demonstration with sample scenarios
+     */
+    private void runDemo() {
+        System.out.println("\n🧪 RUNNING AI CAPTIONING DEMO");
+        System.out.println("═".repeat(45));
+        
+        // Demo scenarios with simulated images
+        String[] demoScenarios = {
+            "landscape_mountain.jpg",
+            "person_portrait.jpg", 
+            "city_building.jpg",
+            "nature_forest.jpg"
+        };
+        
+        System.out.println("🎬 Simulating caption generation for demo images...\n");
+        
+        for (String scenario : demoScenarios) {
+            System.out.println("📸 Processing: " + scenario);
+            
+            // Create simulated image for demo
+            BufferedImage demoImage = createDemoImage(scenario);
+            
+            // Process the demo image
+            long startTime = System.currentTimeMillis();
+            BufferedImage processedImage = preprocessor.preprocessImage(demoImage);
+            ImageFeatures features = featureExtractor.extractFeatures(processedImage);
+            GeneratedCaption caption = captionGenerator.generateCaption(features);
+            long processingTime = System.currentTimeMillis() - startTime;
+            
+            // Display results
+            System.out.println("   📝 Caption: " + caption.caption);
+            System.out.println("   📊 Confidence: " + String.format("%.1f%%", caption.confidence * 100));
+            System.out.println("   ⏱️  Time: " + processingTime + "ms");
+            System.out.println();
+            
+            // Store in database
+            captionDB.storeCaption(scenario, caption, processingTime);
+            
+            // Small delay for demo effect
+            try { Thread.sleep(500); } catch (InterruptedException e) { }
+        }
+        
+        System.out.println("✅ Demo completed successfully!");
+        captionDB.printStatistics();
+    }
+    
+    /**
+     * Create simulated demo image based on scenario
+     */
+    private BufferedImage createDemoImage(String scenario) {
+        BufferedImage image = new BufferedImage(224, 224, BufferedImage.TYPE_INT_RGB);
+        
+        // Fill with different colors/patterns based on scenario
+        for (int x = 0; x < 224; x++) {
+            for (int y = 0; y < 224; y++) {
+                int color = 0;
+                
+                if (scenario.contains("landscape")) {
+                    // Sky blue gradient
+                    color = (135 << 16) | (206 << 8) | 250;
+                } else if (scenario.contains("person")) {
+                    // Skin tone
+                    color = (255 << 16) | (218 << 8) | 185;
+                } else if (scenario.contains("city")) {
+                    // Gray building color
+                    color = (128 << 16) | (128 << 8) | 128;
+                } else if (scenario.contains("nature")) {
+                    // Forest green
+                    color = (34 << 16) | (139 << 8) | 34;
+                } else {
+                    // Default white
+                    color = (255 << 16) | (255 << 8) | 255;
+                }
+                
+                image.setRGB(x, y, color);
+            }
+        }
+        
+        return image;
+    }
+    
+    /**
+     * API Methods for integration with other systems
+     */
+    
+    /**
+     * Simple API method for external systems
+     */
+    public Map<String, Object> captionImageAPI(String imagePath) {
+        Map<String, Object> response = new HashMap<>();
+        
+        try {
+            GeneratedCaption result = generateCaption(imagePath);
+            
+            response.put("success", true);
+            response.put("caption", result.caption);
+            response.put("confidence", result.confidence);
+            response.put("alternatives", result.alternatives);
+            response.put("model", modelManager.getCurrentModel());
+            response.put("timestamp", System.currentTimeMillis());
+            
+        } catch (Exception e) {
+            response.put("success", false);
+            response.put("error", e.getMessage());
+        }
+        
+        return response;
+    }
+    
+    /**
+     * Batch API method
+     */
+    public List<Map<String, Object>> batchCaptionAPI(String[] imagePaths) {
+        List<Map<String, Object>> responses = new ArrayList<>();
+        
+        for (String path : imagePaths) {
+            responses.add(captionImageAPI(path));
+        }
+        
+        return responses;
+    }
+    
+    /**
+     * Get system information
+     */
+    public Map<String, Object> getSystemInfo() {
+        Map<String, Object> info = new HashMap<>();
+        
+        info.put("version", MODEL_VERSION);
+        info.put("currentModel", modelManager.getCurrentModel());
+        info.put("availableModels", modelManager.getAvailableModels());
+        info.put("featureVectorSize", FEATURE_VECTOR_SIZE);
+        info.put("maxCaptionLength", MAX_CAPTION_LENGTH);
+        info.put("imagesProcessed", captionDB.imageHistory.size());
+        
+        return info;
+    }
+    
+    /**
+     * Health check method
+     */
+    public boolean healthCheck() {
+        try {
+            // Test basic functionality
+            BufferedImage testImage = new BufferedImage(100, 100, BufferedImage.TYPE_INT_RGB);
+            BufferedImage processed = preprocessor.preprocessImage(testImage);
+            ImageFeatures features = featureExtractor.extractFeatures(processed);
+            GeneratedCaption caption = captionGenerator.generateCaption(features);
+            
+            return caption != null && !caption.caption.isEmpty();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
+    /**
+     * Performance benchmark
+     */
+    public void runBenchmark(int iterations) {
+        System.out.println("\n🚀 PERFORMANCE BENCHMARK");
+        System.out.println("═".repeat(35));
+        System.out.println("Running " + iterations + " iterations...");
+        
+        List<Long> times = new ArrayList<>();
+        BufferedImage testImage = new BufferedImage(224, 224, BufferedImage.TYPE_INT_RGB);
+        
+        // Fill test image with random pattern
+        Random rand = new Random();
+        for (int x = 0; x < 224; x++) {
+            for (int y = 0; y < 224; y++) {
+                testImage.setRGB(x, y, rand.nextInt(0xFFFFFF));
+            }
+        }
+        
+        for (int i = 0; i < iterations; i++) {
+            long start = System.currentTimeMillis();
+            
+            BufferedImage processed = preprocessor.preprocessImage(testImage);
+            ImageFeatures features = featureExtractor.extractFeatures(processed);
+            GeneratedCaption caption = captionGenerator.generateCaption(features);
+            
+            long time = System.currentTimeMillis() - start;
+            times.add(time);
+            
+            System.out.print(".");
+            if ((i + 1) % 10 == 0) {
+                System.out.println(" " + (i + 1) + "/" + iterations);
+            }
+        }
+        
+        // Calculate statistics
+        double avgTime = times.stream().mapToLong(Long::longValue).average().orElse(0);
+        long minTime = times.stream().mapToLong(Long::longValue).min().orElse(0);
+        long maxTime = times.stream().mapToLong(Long::longValue).max().orElse(0);
+        
+        System.out.println("\n📊 BENCHMARK RESULTS:");
+        System.out.println("Average time: " + String.format("%.2f ms", avgTime));
+        System.out.println("Min time: " + minTime + " ms");
+        System.out.println("Max time: " + maxTime + " ms");
+        System.out.println("Throughput: " + String.format("%.2f images/sec", 1000.0 / avgTime));
+        System.out.println("═".repeat(35));
+    }
+    
+    /**
+     * Export captions to file
+     */
+    public void exportCaptions(String outputPath) {
+        try (PrintWriter writer = new PrintWriter(new FileWriter(outputPath))) {
+            writer.println("Image ID,Caption,Confidence,Processing Time (ms)");
+            
+            for (Map.Entry<String, List<GeneratedCaption>> entry : captionDB.imageHistory.entrySet()) {
+                String imageId = entry.getKey();
+                List<GeneratedCaption> captions = entry.getValue();
+                Long processingTime = captionDB.processingTimes.get(imageId);
+                
+                for (GeneratedCaption caption : captions) {
+                    writer.printf("%s,\"%s\",%.3f,%d%n", 
+                                imageId, 
+                                caption.caption.replace("\"", "\"\""),
+                                caption.confidence,
+                                processingTime != null ? processingTime : 0);
+                }
+            }
+            
+            System.out.println("✅ Captions exported to: " + outputPath);
+            
+        } catch (IOException e) {
+            System.err.println("❌ Error exporting captions: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Main method - Entry point for the application
+     */
+    public static void main(String[] args) {
+        try {
+            ImageCaptioningAI ai = new ImageCaptioningAI();
+            
+            if (args.length > 0) {
+                switch (args[0].toLowerCase()) {
+                    case "--demo":
+                        ai.runDemo();
+                        break;
+                        
+                    case "--benchmark":
+                        int iterations = args.length > 1 ? Integer.parseInt(args[1]) : 10;
+                        ai.runBenchmark(iterations);
+                        break;
+                        
+                    case "--caption":
+                        if (args.length > 1) {
+                            GeneratedCaption result = ai.generateCaption(args[1]);
+                            ai.displayCaptionResult(result);
+                        } else {
+                            System.out.println("Usage: --caption <image_path>");
+                        }
+                        break;
+                        
+                    case "--batch":
+                        if (args.length > 1) {
+                            String[] paths = Arrays.copyOfRange(args, 1, args.length);
+                            List<GeneratedCaption> results = ai.batchGenerateCaptions(paths);
+                            for (int i = 0; i < results.size(); i++) {
+                                System.out.println(paths[i] + ": " + results.get(i).caption);
+                            }
+                        } else {
+                            System.out.println("Usage: --batch <image_path1> <image_path2> ...");
+                        }
+                        break;
+                        
+                    case "--health":
+                        boolean healthy = ai.healthCheck();
+                        System.out.println("System health: " + (healthy ? "✅ OK" : "❌ ERROR"));
+                        break;
+                        
+                    case "--info":
+                        Map<String, Object> info = ai.getSystemInfo();
+                        System.out.println("📋 SYSTEM INFORMATION:");
+                        info.forEach((key, value) -> System.out.println(key + ": " + value));
+                        break;
+                        
+                    case "--export":
+                        String outputPath = args.length > 1 ? args[1] : "captions_export.csv";
+                        ai.exportCaptions(outputPath);
+                        break;
+                        
+                    case "--help":
+                        printUsage();
+                        break;
+                        
+                    default:
+                        System.out.println("Unknown option: " + args[0]);
+                        printUsage();
+                }
+            } else {
+                // Start interactive mode
+                ai.startInteractive();
+            }
+            
+        } catch (Exception e) {
+            System.err.println("❌ Application error: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+    
+    /**
+     * Print usage information
+     */
+    private static void printUsage() {
+        System.out.println("\n🎨 AI IMAGE CAPTIONING SYSTEM - Usage");
+        System.out.println("═".repeat(50));
+        System.out.println("Interactive mode:");
+        System.out.println("  java ImageCaptioningAI");
+        System.out.println();
+        System.out.println("Command line options:");
+        System.out.println("  --demo              Run demonstration");
+        System.out.println("  --benchmark [n]     Run performance benchmark (n iterations)");
+        System.out.println("  --caption <path>    Caption single image");
+        System.out.println("  --batch <paths...>  Caption multiple images");
+        System.out.println("  --health            Check system health");
+        System.out.println("  --info              Show system information");
+        System.out.println("  --export [file]     Export captions to CSV");
+        System.out.println("  --help              Show this help message");
+        System.out.println("═".repeat(50));
+    }
+}
